@@ -8,11 +8,16 @@ import '../models/season.dart';
 import '../models/tv_show.dart';
 
 class TvService {
-  Future<Map<String, dynamic>> _getJson(String endpoint) async {
-    final url = Uri.parse(
-      '${ApiConfig.baseUrl}$endpoint'
-      '?api_key=${ApiConfig.apiKey}'
-      '&language=en-US',
+  Future<Map<String, dynamic>> _getJson(
+    String endpoint, {
+    Map<String, String> queryParameters = const {},
+  }) async {
+    final url = Uri.parse('${ApiConfig.baseUrl}$endpoint').replace(
+      queryParameters: {
+        'api_key': ApiConfig.apiKey,
+        'language': 'en-US',
+        ...queryParameters,
+      },
     );
 
     final response = await http.get(url);
@@ -43,8 +48,10 @@ class TvService {
   }
 
   Future<List<TvShow>> searchTvShows(String query) async {
-    final encodedQuery = Uri.encodeComponent(query);
-    final data = await _getJson('/search/tv&query=$encodedQuery');
+    final data = await _getJson(
+      '/search/tv',
+      queryParameters: {'query': query},
+    );
     final results = data['results'] as List<dynamic>? ?? [];
 
     return results
