@@ -47,6 +47,15 @@ class TvService {
         .toList();
   }
 
+  Future<List<TvShow>> fetchTopRatedTvShows() async {
+    final data = await _getJson('/tv/top_rated');
+    final results = data['results'] as List<dynamic>? ?? [];
+
+    return results
+        .map((item) => TvShow.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
   Future<List<TvShow>> searchTvShows(String query) async {
     final data = await _getJson(
       '/search/tv',
@@ -70,6 +79,7 @@ class TvService {
 
     return results
         .map((item) => Season.fromJson(item as Map<String, dynamic>))
+        .where((season) => season.seasonNumber > 0)
         .toList();
   }
 
