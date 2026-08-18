@@ -1,10 +1,13 @@
-import 'profile_screen.dart';
 import 'package:flutter/material.dart';
 
 import '../models/movie.dart';
+import '../models/tv_show.dart';
 import '../services/movie_service.dart';
+import '../services/tv_service.dart';
 import '../widgets/movie_card.dart';
+import '../widgets/tv_show_card.dart';
 import 'library_screen.dart';
+import 'profile_screen.dart';
 import 'search_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -16,12 +19,17 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int selectedIndex = 0;
+  int homeCategoryIndex = 0;
 
   final MovieService movieService = MovieService();
+  final TvService tvService = TvService();
 
   late Future<List<Movie>> trendingMovies;
   late Future<List<Movie>> popularMovies;
-  late Future<List<Movie>> popularTvShows;
+
+  late Future<List<TvShow>> trendingTvShows;
+  late Future<List<TvShow>> popularTvShows;
+  late Future<List<TvShow>> topRatedTvShows;
 
   @override
   void initState() {
@@ -29,7 +37,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
     trendingMovies = movieService.fetchTrendingMovies();
     popularMovies = movieService.fetchPopularMovies();
-    popularTvShows = movieService.fetchPopularTvShows();
+
+    trendingTvShows = tvService.fetchTrendingTvShows();
+    popularTvShows = tvService.fetchPopularTvShows();
+    topRatedTvShows = tvService.fetchTopRatedTvShows();
   }
 
   Widget sectionTitle(String title) {
@@ -37,12 +48,15 @@ class _HomeScreenState extends State<HomeScreen> {
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Text(
         title,
-        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+        style: const TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }
 
-  Widget horizontalList(Future<List<Movie>> future) {
+  Widget horizontalMovieList(Future<List<Movie>> future) {
     return SizedBox(
       height: 310,
       child: FutureBuilder<List<Movie>>(
@@ -56,18 +70,17 @@ class _HomeScreenState extends State<HomeScreen> {
             return Center(child: Text(snapshot.error.toString()));
           }
 
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          final movies = snapshot.data ?? [];
+
+          if (movies.isEmpty) {
             return const Center(child: Text('No movies found'));
           }
-
-          final movies = snapshot.data!;
 
           return ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: movies.length,
-            separatorBuilder: (context, index) {
-              return const SizedBox(width: 12);
-            },
+            separatorBuilder: (context, index) =>
+                const SizedBox(width: 12),
             itemBuilder: (context, index) {
               return MovieCard(movie: movies[index]);
             },
@@ -75,6 +88,103 @@ class _HomeScreenState extends State<HomeScreen> {
         },
       ),
     );
+  }
+
+  Widget horizontalTvList(Future<List<TvShow>> future) {
+    return SizedBox(
+      height: 310,
+      child: FutureBuilder<List<TvShow>>(
+        future: future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(child: Text(snapshot.error.toString()));
+          }
+
+          final shows = snapshot.data ?? [];
+
+          if (shows.isEmpty) {
+            return const Center(child: Text('No TV series found'));
+          }
+
+          return ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: shows.length,
+            separatorBuilder: (context, index) =>
+                const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              return TvShowCard(show: shows[index]);
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Widget categoryButton({
+    required int index,
+    required IconData icon,
+    required String label,
+  }) {
+    final selected = homeCategoryIndex == index;
+
+    if (selected) {
+      return Expanded(
+        child: ElevatedButton.icon(
+          onPressed: () {
+            setState(() {
+              homeCategoryIndex = index;
+            });
+          },
+          icon: Icon(icon),
+          label: Text(label),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.red,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 15),
+          ),
+        ),
+      );
+    }
+
+    return Expanded(
+      child: OutlinedButton.icon(
+        onPressed: () {
+          setState(() {
+            homeCategoryIndex = index;
+          });
+        },
+        icon: Icon(icon),
+        label: Text(label),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: Colors.white70,
+          padding: const EdgeInsets.symmetric(vertical: 15),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> movieHomeContent() {
+    return [
+      sectionTitle('Trending Movies'),
+      horizontalMovieList(trendingMovies),
+      sectionTitle('Popular Movies'),
+      horizontalMovieList(popularMovies),
+    ];
+  }
+
+  List<Widget> tvHomeContent() {
+    return [
+      sectionTitle('Trending TV Series'),
+      horizontalTvList(trendingTvShows),
+      sectionTitle('Popular TV Series'),
+      horizontalTvList(popularTvShows),
+      sectionTitle('Top Rated TV Series'),
+      horizontalTvList(topRatedTvShows),
+    ];
   }
 
   Widget homePage() {
@@ -99,17 +209,26 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
-
-          const SizedBox(height: 20),
-
-          sectionTitle('Trending Movies'),
-          horizontalList(trendingMovies),
-
-          sectionTitle('Popular Movies'),
-          horizontalList(popularMovies),
-
-          sectionTitle('Popular TV Shows'),
-          horizontalList(popularTvShows),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              categoryButton(
+                index: 0,
+                icon: Icons.movie_outlined,
+                label: 'Movies',
+              ),
+              const SizedBox(width: 12),
+              categoryButton(
+                index: 1,
+                icon: Icons.tv,
+                label: 'TV Series',
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ...(homeCategoryIndex == 0
+              ? movieHomeContent()
+              : tvHomeContent()),
         ],
       ),
     );
@@ -118,21 +237,18 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('🎬 Movie Tracker')),
-
+      appBar: AppBar(
+        title: const Text('🎬 Movie Tracker'),
+      ),
       body: IndexedStack(
         index: selectedIndex,
         children: [
           homePage(),
-
           const SearchScreen(),
-
           LibraryScreen(key: ValueKey(selectedIndex)),
-
           ProfileScreen(key: ValueKey(selectedIndex)),
         ],
       ),
-
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: selectedIndex,
         onTap: (index) {
@@ -145,13 +261,22 @@ class _HomeScreenState extends State<HomeScreen> {
         unselectedItemColor: Colors.grey,
         type: BottomNavigationBarType.fixed,
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Search'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home),
+            label: 'Home',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.search),
+            label: 'Search',
+          ),
           BottomNavigationBarItem(
             icon: Icon(Icons.video_library),
             label: 'Library',
           ),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person),
+            label: 'Profile',
+          ),
         ],
       ),
     );
