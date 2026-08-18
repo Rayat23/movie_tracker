@@ -20,6 +20,9 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Create safe API config for CI
+        run: cp lib/config/api_config.example.dart lib/config/api_config.dart
+
       - name: Install dependencies
         run: flutter pub get
 
