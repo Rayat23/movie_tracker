@@ -1,9 +1,10 @@
+import 'profile_screen.dart';
 import 'package:flutter/material.dart';
 
 import '../models/movie.dart';
 import '../services/movie_service.dart';
 import '../widgets/movie_card.dart';
-import 'favorites_screen.dart';
+import 'library_screen.dart';
 import 'search_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -22,11 +23,10 @@ class _HomeScreenState extends State<HomeScreen> {
   late Future<List<Movie>> popularMovies;
   late Future<List<Movie>> popularTvShows;
 
-  final List<String> pages = ["Home", "Search", "Favorites", "Profile"];
-
   @override
   void initState() {
     super.initState();
+
     trendingMovies = movieService.fetchTrendingMovies();
     popularMovies = movieService.fetchPopularMovies();
     popularTvShows = movieService.fetchPopularTvShows();
@@ -42,10 +42,9 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Now takes a future, so we can reuse it for every row.
   Widget horizontalList(Future<List<Movie>> future) {
     return SizedBox(
-      height: 280,
+      height: 310,
       child: FutureBuilder<List<Movie>>(
         future: future,
         builder: (context, snapshot) {
@@ -58,14 +57,17 @@ class _HomeScreenState extends State<HomeScreen> {
           }
 
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text("No movies found"));
+            return const Center(child: Text('No movies found'));
           }
 
           final movies = snapshot.data!;
 
-          return ListView.builder(
+          return ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: movies.length,
+            separatorBuilder: (context, index) {
+              return const SizedBox(width: 12);
+            },
             itemBuilder: (context, index) {
               return MovieCard(movie: movies[index]);
             },
@@ -81,8 +83,14 @@ class _HomeScreenState extends State<HomeScreen> {
       child: ListView(
         children: [
           TextField(
+            readOnly: true,
+            onTap: () {
+              setState(() {
+                selectedIndex = 1;
+              });
+            },
             decoration: InputDecoration(
-              hintText: "Search movies or TV shows...",
+              hintText: 'Search movies or TV shows...',
               prefixIcon: const Icon(Icons.search),
               filled: true,
               fillColor: Colors.grey[900],
@@ -94,13 +102,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
           const SizedBox(height: 20),
 
-          sectionTitle("Trending Movies"),
+          sectionTitle('Trending Movies'),
           horizontalList(trendingMovies),
 
-          sectionTitle("Popular Movies"),
+          sectionTitle('Popular Movies'),
           horizontalList(popularMovies),
 
-          sectionTitle("Popular TV Shows"),
+          sectionTitle('Popular TV Shows'),
           horizontalList(popularTvShows),
         ],
       ),
@@ -110,20 +118,18 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("🎬 Movie Tracker")),
+      appBar: AppBar(title: const Text('🎬 Movie Tracker')),
 
       body: IndexedStack(
         index: selectedIndex,
         children: [
           homePage(),
+
           const SearchScreen(),
-          FavoritesScreen(key: ValueKey(selectedIndex)),
-          Center(
-            child: Text(
-              pages[3],
-              style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
-            ),
-          ),
+
+          LibraryScreen(key: ValueKey(selectedIndex)),
+
+          ProfileScreen(key: ValueKey(selectedIndex)),
         ],
       ),
 
@@ -139,13 +145,13 @@ class _HomeScreenState extends State<HomeScreen> {
         unselectedItemColor: Colors.grey,
         type: BottomNavigationBarType.fixed,
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-          BottomNavigationBarItem(icon: Icon(Icons.search), label: "Search"),
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Search'),
           BottomNavigationBarItem(
-            icon: Icon(Icons.favorite),
-            label: "Favorites",
+            icon: Icon(Icons.video_library),
+            label: 'Library',
           ),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
       ),
     );

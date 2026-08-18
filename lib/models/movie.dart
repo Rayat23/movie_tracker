@@ -18,18 +18,26 @@ class Movie {
   factory Movie.fromJson(Map<String, dynamic> json) {
     return Movie(
       id: json['id'] as int? ?? 0,
+
       title:
           json['title'] as String? ??
           json['name'] as String? ??
           'Unknown title',
+
       posterPath: json['poster_path'] as String? ?? '',
+
       rating: (json['vote_average'] as num?)?.toDouble() ?? 0.0,
-      releaseDate: json['release_date'] as String? ?? '',
+
+      releaseDate:
+          json['release_date'] as String? ??
+          json['first_air_date'] as String? ??
+          '',
+
       overview: json['overview'] as String? ?? '',
     );
   }
 
-  // Converts a Movie back into a map we can save as text.
+  // Converts Movie into a map so it can be saved.
   Map<String, dynamic> toJson() {
     return {
       'id': id,

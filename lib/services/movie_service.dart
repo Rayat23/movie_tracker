@@ -6,7 +6,7 @@ import '../config/api_config.dart';
 import '../models/movie.dart';
 
 class MovieService {
-  // Shared helper so we don't repeat the same request code three times.
+  // Shared method for fetching movie lists from TMDB.
   Future<List<Movie>> _fetchMovies(String endpoint) async {
     final url = Uri.parse(
       '${ApiConfig.baseUrl}$endpoint'
@@ -16,10 +16,9 @@ class MovieService {
 
     final response = await http.get(url);
 
-    print('TMDB [$endpoint] status: ${response.statusCode}');
-
     if (response.statusCode == 200) {
       final Map<String, dynamic> data = jsonDecode(response.body);
+
       final List<dynamic> results = data['results'] ?? [];
 
       return results
@@ -52,10 +51,9 @@ class MovieService {
 
     final response = await http.get(url);
 
-    print('TMDB [search] status: ${response.statusCode}');
-
     if (response.statusCode == 200) {
       final Map<String, dynamic> data = jsonDecode(response.body);
+
       final List<dynamic> results = data['results'] ?? [];
 
       return results

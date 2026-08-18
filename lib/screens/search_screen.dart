@@ -16,12 +16,16 @@ class _SearchScreenState extends State<SearchScreen> {
   final TextEditingController controller = TextEditingController();
 
   List<Movie> results = [];
+
   bool isLoading = false;
   bool hasSearched = false;
 
-  void doSearch() async {
+  Future<void> doSearch() async {
     final query = controller.text.trim();
-    if (query.isEmpty) return;
+
+    if (query.isEmpty) {
+      return;
+    }
 
     setState(() {
       isLoading = true;
@@ -30,11 +34,16 @@ class _SearchScreenState extends State<SearchScreen> {
 
     try {
       final movies = await movieService.searchMovies(query);
+
+      if (!mounted) return;
+
       setState(() {
         results = movies;
         isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
+
       setState(() {
         results = [];
         isLoading = false;
@@ -50,14 +59,19 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Widget buildBody() {
     if (isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
     }
 
     if (!hasSearched) {
       return const Center(
         child: Text(
-          "Search for a movie above",
-          style: TextStyle(fontSize: 16, color: Colors.grey),
+          'Search for a movie above',
+          style: TextStyle(
+            fontSize: 16,
+            color: Colors.grey,
+          ),
         ),
       );
     }
@@ -65,22 +79,27 @@ class _SearchScreenState extends State<SearchScreen> {
     if (results.isEmpty) {
       return const Center(
         child: Text(
-          "No results found",
-          style: TextStyle(fontSize: 16, color: Colors.grey),
+          'No results found',
+          style: TextStyle(
+            fontSize: 16,
+            color: Colors.grey,
+          ),
         ),
       );
     }
 
     return GridView.builder(
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        childAspectRatio: 0.55,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 180,
+        mainAxisExtent: 315,
+        crossAxisSpacing: 14,
+        mainAxisSpacing: 18,
       ),
       itemCount: results.length,
       itemBuilder: (context, index) {
-        return MovieCard(movie: results[index]);
+        return MovieCard(
+          movie: results[index],
+        );
       },
     );
   }
@@ -96,7 +115,7 @@ class _SearchScreenState extends State<SearchScreen> {
             textInputAction: TextInputAction.search,
             onSubmitted: (_) => doSearch(),
             decoration: InputDecoration(
-              hintText: "Search movies...",
+              hintText: 'Search movies...',
               prefixIcon: const Icon(Icons.search),
               suffixIcon: IconButton(
                 icon: const Icon(Icons.arrow_forward),
@@ -109,8 +128,12 @@ class _SearchScreenState extends State<SearchScreen> {
               ),
             ),
           ),
+
           const SizedBox(height: 16),
-          Expanded(child: buildBody()),
+
+          Expanded(
+            child: buildBody(),
+          ),
         ],
       ),
     );
