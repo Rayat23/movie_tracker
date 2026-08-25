@@ -49,7 +49,8 @@ class _DetailsScreenState extends State<DetailsScreen> {
     final bool isWatchlist = favorites.isInWatchlist(movie);
     final bool isWatched = favorites.isWatched(movie);
     final double? userRating = favorites.getUserRating(movie);
-    final DateTime? watchedDate = favorites.getWatchedDate(movie);
+    final DateTime? latestWatchDate = favorites.getLatestMovieWatchDate(movie);
+    final int watchCount = favorites.getMovieWatchCount(movie);
 
     return Scaffold(
       appBar: AppBar(
@@ -90,7 +91,8 @@ class _DetailsScreenState extends State<DetailsScreen> {
                         isWatchlist,
                         isWatched,
                         userRating,
-                        watchedDate,
+                        latestWatchDate,
+                        watchCount,
                       )
                     : _buildMobileLayout(
                         movie,
@@ -98,7 +100,8 @@ class _DetailsScreenState extends State<DetailsScreen> {
                         isWatchlist,
                         isWatched,
                         userRating,
-                        watchedDate,
+                        latestWatchDate,
+                        watchCount,
                       ),
               ),
             ),
@@ -114,7 +117,8 @@ class _DetailsScreenState extends State<DetailsScreen> {
     bool isWatchlist,
     bool isWatched,
     double? userRating,
-    DateTime? watchedDate,
+    DateTime? latestWatchDate,
+    int watchCount,
   ) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -128,7 +132,8 @@ class _DetailsScreenState extends State<DetailsScreen> {
             isWatchlist,
             isWatched,
             userRating,
-            watchedDate,
+            latestWatchDate,
+            watchCount,
           ),
         ),
       ],
@@ -141,7 +146,8 @@ class _DetailsScreenState extends State<DetailsScreen> {
     bool isWatchlist,
     bool isWatched,
     double? userRating,
-    DateTime? watchedDate,
+    DateTime? latestWatchDate,
+    int watchCount,
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -154,7 +160,8 @@ class _DetailsScreenState extends State<DetailsScreen> {
           isWatchlist,
           isWatched,
           userRating,
-          watchedDate,
+          latestWatchDate,
+          watchCount,
         ),
       ],
     );
@@ -193,7 +200,8 @@ class _DetailsScreenState extends State<DetailsScreen> {
     bool isWatchlist,
     bool isWatched,
     double? userRating,
-    DateTime? watchedDate,
+    DateTime? latestWatchDate,
+    int watchCount,
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -248,7 +256,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
               ),
           ],
         ),
-        if (isWatched && watchedDate != null) ...[
+        if (isWatched && latestWatchDate != null) ...[
           const SizedBox(height: 20),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -257,17 +265,24 @@ class _DetailsScreenState extends State<DetailsScreen> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Colors.green.withValues(alpha: 0.35)),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+            child: Wrap(
+              spacing: 10,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 const Icon(Icons.check_circle, color: Colors.green, size: 20),
-                const SizedBox(width: 8),
                 Text(
-                  'Watched ${_formatDate(watchedDate)}',
+                  watchCount > 1
+                      ? 'Watched $watchCount times'
+                      : 'Watched',
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                   ),
+                ),
+                Text(
+                  'Latest ${_formatDate(latestWatchDate)}',
+                  style: const TextStyle(color: Colors.white70),
                 ),
               ],
             ),
@@ -405,6 +420,27 @@ class _DetailsScreenState extends State<DetailsScreen> {
                 ),
               ),
             ),
+            if (isWatched)
+              ElevatedButton.icon(
+                onPressed: () async {
+                  await favorites.logRewatch(movie);
+                  if (!mounted) return;
+                  setState(() {});
+
+                  final count = favorites.getMovieWatchCount(movie);
+                  _showMessage('Rewatch logged • $count total watches');
+                },
+                icon: const Icon(Icons.replay),
+                label: const Text('Log Rewatch'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.deepPurple,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 14,
+                  ),
+                ),
+              ),
           ],
         ),
         const SizedBox(height: 32),

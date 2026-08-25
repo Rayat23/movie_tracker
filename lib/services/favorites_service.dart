@@ -15,6 +15,7 @@ class FavoritesService {
   static const String _watchedKey = 'watched_movies';
   static const String _ratingsKey = 'movie_ratings';
   static const String _watchedDatesKey = 'watched_dates';
+  static const String _rewatchDatesKey = 'movie_rewatch_dates_v1';
 
   final List<Movie> _favorites = [];
   final List<Movie> _watchlist = [];
@@ -22,15 +23,38 @@ class FavoritesService {
 
   final Map<int, double> _ratings = {};
   final Map<int, DateTime> _watchedDates = {};
+  final Map<int, List<DateTime>> _rewatchDates = {};
 
   List<Movie> get favorites => List.unmodifiable(_favorites);
   List<Movie> get watchlist => List.unmodifiable(_watchlist);
   List<Movie> get watched => List.unmodifiable(_watched);
 
-  int get totalMovieMinutes => _watched.fold(
-        0,
-        (total, movie) => total + movie.runtimeMinutes,
-      );
+  int get totalMovieWatchEvents {
+    int total = 0;
+
+    for (final movie in _watched) {
+      total += getMovieWatchCount(movie);
+    }
+
+    return total;
+  }
+
+  int get totalMovieRewatches {
+    return _rewatchDates.values.fold(
+      0,
+      (total, dates) => total + dates.length,
+    );
+  }
+
+  int get totalMovieMinutes {
+    int total = 0;
+
+    for (final movie in _watched) {
+      total += movie.runtimeMinutes * getMovieWatchCount(movie);
+    }
+
+    return total;
+  }
 
   bool isFavorite(Movie movie) {
     return _favorites.any((m) => m.id == movie.id);
@@ -52,6 +76,29 @@ class FavoritesService {
     return _watchedDates[movie.id];
   }
 
+  List<DateTime> getMovieWatchDates(Movie movie) {
+    final dates = <DateTime>[];
+    final firstWatch = _watchedDates[movie.id];
+
+    if (firstWatch != null) {
+      dates.add(firstWatch);
+    }
+
+    dates.addAll(_rewatchDates[movie.id] ?? const <DateTime>[]);
+    dates.sort();
+
+    return List.unmodifiable(dates);
+  }
+
+  DateTime? getLatestMovieWatchDate(Movie movie) {
+    final dates = getMovieWatchDates(movie);
+    return dates.isEmpty ? null : dates.last;
+  }
+
+  int getMovieWatchCount(Movie movie) {
+    return getMovieWatchDates(movie).length;
+  }
+
   Future<void> loadAll() async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -60,6 +107,7 @@ class FavoritesService {
     _loadMovieList(prefs.getString(_watchedKey), _watched);
     _loadRatings(prefs.getString(_ratingsKey));
     _loadWatchedDates(prefs.getString(_watchedDatesKey));
+    _loadRewatchDates(prefs.getString(_rewatchDatesKey));
   }
 
   void _loadMovieList(String? stored, List<Movie> targetList) {
@@ -116,6 +164,31 @@ class FavoritesService {
     });
   }
 
+  void _loadRewatchDates(String? stored) {
+    _rewatchDates.clear();
+
+    if (stored == null || stored.isEmpty) {
+      return;
+    }
+
+    final decoded = jsonDecode(stored) as Map<String, dynamic>;
+
+    decoded.forEach((key, value) {
+      final movieId = int.tryParse(key);
+      if (movieId == null || value is! List) return;
+
+      final dates = value
+          .map((item) => DateTime.tryParse(item.toString()))
+          .whereType<DateTime>()
+          .toList()
+        ..sort();
+
+      if (dates.isNotEmpty) {
+        _rewatchDates[movieId] = dates;
+      }
+    });
+  }
+
   Future<void> _saveList(String key, List<Movie> movies) async {
     final prefs = await SharedPreferences.getInstance();
     final String encoded = jsonEncode(
@@ -142,9 +215,11 @@ class FavoritesService {
       _watchlist.add(movie);
       _watched.removeWhere((m) => m.id == movie.id);
       _watchedDates.remove(movie.id);
+      _rewatchDates.remove(movie.id);
 
       await _saveList(_watchedKey, _watched);
       await _saveWatchedDates();
+      await _saveRewatchDates();
     }
 
     await _saveList(_watchlistKey, _watchlist);
@@ -154,10 +229,12 @@ class FavoritesService {
     if (isWatched(movie)) {
       _watched.removeWhere((m) => m.id == movie.id);
       _watchedDates.remove(movie.id);
+      _rewatchDates.remove(movie.id);
     } else {
       _watched.removeWhere((m) => m.id == movie.id);
       _watched.add(movie);
       _watchedDates[movie.id] = DateTime.now();
+      _rewatchDates.remove(movie.id);
       _watchlist.removeWhere((m) => m.id == movie.id);
 
       await _saveList(_watchlistKey, _watchlist);
@@ -165,6 +242,17 @@ class FavoritesService {
 
     await _saveList(_watchedKey, _watched);
     await _saveWatchedDates();
+    await _saveRewatchDates();
+  }
+
+  Future<void> logRewatch(Movie movie) async {
+    if (!isWatched(movie)) return;
+
+    final dates = _rewatchDates.putIfAbsent(movie.id, () => <DateTime>[]);
+    dates.add(DateTime.now());
+    dates.sort();
+
+    await _saveRewatchDates();
   }
 
   Future<void> syncMovieMetadata(Movie movie) async {
@@ -229,5 +317,18 @@ class FavoritesService {
     );
 
     await prefs.setString(_watchedDatesKey, jsonEncode(datesToSave));
+  }
+
+  Future<void> _saveRewatchDates() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final datesToSave = _rewatchDates.map(
+      (movieId, dates) => MapEntry(
+        movieId.toString(),
+        dates.map((date) => date.toIso8601String()).toList(),
+      ),
+    );
+
+    await prefs.setString(_rewatchDatesKey, jsonEncode(datesToSave));
   }
 }

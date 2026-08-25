@@ -74,6 +74,10 @@ class _SeasonScreenState extends State<SeasonScreen> {
           );
           final isComplete = watchedCount >= episodes.length;
           final progress = watchedCount / episodes.length;
+          final seasonRating = tracking.getSeasonRating(
+            widget.show.id,
+            widget.season.seasonNumber,
+          );
 
           return ListView.separated(
             padding: const EdgeInsets.all(20),
@@ -87,6 +91,7 @@ class _SeasonScreenState extends State<SeasonScreen> {
                   totalCount: episodes.length,
                   progress: progress,
                   isComplete: isComplete,
+                  seasonRating: seasonRating,
                   onToggleSeason: () async {
                     await tracking.setSeasonWatched(
                       show: widget.show,
@@ -98,6 +103,38 @@ class _SeasonScreenState extends State<SeasonScreen> {
                     if (!mounted) return;
                     setState(() {});
                   },
+                  onRateSeason: () async {
+                    final rating = await _showRatingDialog(
+                      title: 'Rate ${widget.season.name}',
+                      currentRating: seasonRating,
+                    );
+
+                    if (rating == null) return;
+
+                    await tracking.setSeasonRating(
+                      widget.show.id,
+                      widget.season.seasonNumber,
+                      rating.toDouble(),
+                    );
+
+                    if (!mounted) return;
+                    setState(() {});
+                    _showMessage(
+                      '${widget.season.name} rated $rating/10',
+                    );
+                  },
+                  onRemoveSeasonRating: seasonRating == null
+                      ? null
+                      : () async {
+                          await tracking.removeSeasonRating(
+                            widget.show.id,
+                            widget.season.seasonNumber,
+                          );
+
+                          if (!mounted) return;
+                          setState(() {});
+                          _showMessage('Season rating removed');
+                        },
                 );
               }
 
@@ -106,7 +143,15 @@ class _SeasonScreenState extends State<SeasonScreen> {
                 widget.show.id,
                 episode.id,
               );
-              final watchedAt = tracking.watchedDateForEpisode(
+              final latestWatchAt = tracking.latestWatchDateForEpisode(
+                widget.show.id,
+                episode.id,
+              );
+              final watchCount = tracking.episodeWatchCount(
+                widget.show.id,
+                episode.id,
+              );
+              final episodeRating = tracking.getEpisodeRating(
                 widget.show.id,
                 episode.id,
               );
@@ -114,22 +159,174 @@ class _SeasonScreenState extends State<SeasonScreen> {
               return _EpisodeTile(
                 episode: episode,
                 isWatched: isWatched,
-                watchedAt: watchedAt,
+                latestWatchAt: latestWatchAt,
+                watchCount: watchCount,
+                userRating: episodeRating,
                 onToggle: () async {
                   await tracking.toggleEpisodeWatched(
                     widget.show,
                     episode,
+                    seasonEpisodeCount: widget.season.episodeCount,
                   );
 
                   if (!mounted) return;
                   setState(() {});
                 },
+                onRewatch: () async {
+                  await tracking.logEpisodeRewatch(
+                    widget.show,
+                    episode,
+                    seasonEpisodeCount: widget.season.episodeCount,
+                  );
+
+                  if (!mounted || !context.mounted) return;
+                  setState(() {});
+
+                  final count = tracking.episodeWatchCount(
+                    widget.show.id,
+                    episode.id,
+                  );
+
+                  ScaffoldMessenger.of(context)
+                    ..hideCurrentSnackBar()
+                    ..showSnackBar(
+                      SnackBar(
+                        duration: const Duration(seconds: 1),
+                        content: Text(
+                          'Rewatch logged • $count total watches',
+                        ),
+                      ),
+                    );
+                },
+                onRate: () async {
+                  final rating = await _showRatingDialog(
+                    title: 'Rate E${episode.episodeNumber} • ${episode.name}',
+                    currentRating: episodeRating,
+                  );
+
+                  if (rating == null) return;
+
+                  await tracking.setEpisodeRating(
+                    widget.show.id,
+                    episode.id,
+                    rating.toDouble(),
+                  );
+
+                  if (!mounted) return;
+                  setState(() {});
+                  _showMessage(
+                    'Episode rated $rating/10',
+                  );
+                },
+                onRemoveRating: episodeRating == null
+                    ? null
+                    : () async {
+                        await tracking.removeEpisodeRating(
+                          widget.show.id,
+                          episode.id,
+                        );
+
+                        if (!mounted) return;
+                        setState(() {});
+                        _showMessage('Episode rating removed');
+                      },
               );
             },
           );
         },
       ),
     );
+  }
+
+  Future<int?> _showRatingDialog({
+    required String title,
+    double? currentRating,
+  }) async {
+    int selectedRating = currentRating?.toInt() ?? 0;
+
+    return showDialog<int>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text(title),
+              content: SizedBox(
+                width: 350,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Choose a rating from 1 to 10'),
+                    const SizedBox(height: 20),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      alignment: WrapAlignment.center,
+                      children: List.generate(10, (index) {
+                        final value = index + 1;
+
+                        return ChoiceChip(
+                          label: Text('$value'),
+                          selected: selectedRating == value,
+                          onSelected: (_) {
+                            setDialogState(() {
+                              selectedRating = value;
+                            });
+                          },
+                        );
+                      }),
+                    ),
+                    const SizedBox(height: 20),
+                    if (selectedRating > 0)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.star,
+                            color: Colors.amber,
+                            size: 30,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '$selectedRating/10',
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: selectedRating == 0
+                      ? null
+                      : () => Navigator.pop(dialogContext, selectedRating),
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 1),
+          content: Text(message),
+        ),
+      );
   }
 }
 
@@ -138,14 +335,20 @@ class _SeasonProgressCard extends StatelessWidget {
   final int totalCount;
   final double progress;
   final bool isComplete;
+  final double? seasonRating;
   final Future<void> Function() onToggleSeason;
+  final Future<void> Function() onRateSeason;
+  final Future<void> Function()? onRemoveSeasonRating;
 
   const _SeasonProgressCard({
     required this.watchedCount,
     required this.totalCount,
     required this.progress,
     required this.isComplete,
+    required this.seasonRating,
     required this.onToggleSeason,
+    required this.onRateSeason,
+    required this.onRemoveSeasonRating,
   });
 
   @override
@@ -155,22 +358,41 @@ class _SeasonProgressCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.grey[900],
         borderRadius: BorderRadius.circular(16),
+        border: isComplete
+            ? Border.all(color: Colors.green.withValues(alpha: 0.45))
+            : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Expanded(
+              SizedBox(
+                width: 260,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Season progress',
-                      style: TextStyle(
-                        fontSize: 19,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      children: [
+                        Text(
+                          isComplete ? 'Season complete' : 'Season progress',
+                          style: const TextStyle(
+                            fontSize: 19,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        if (isComplete) ...[
+                          const SizedBox(width: 8),
+                          const Icon(
+                            Icons.check_circle,
+                            size: 20,
+                            color: Colors.green,
+                          ),
+                        ],
+                      ],
                     ),
                     const SizedBox(height: 5),
                     Text(
@@ -185,14 +407,10 @@ class _SeasonProgressCard extends StatelessWidget {
                   await onToggleSeason();
                 },
                 icon: Icon(
-                  isComplete
-                      ? Icons.replay
-                      : Icons.done_all,
+                  isComplete ? Icons.replay : Icons.done_all,
                 ),
                 label: Text(
-                  isComplete
-                      ? 'Unmark season'
-                      : 'Mark season watched',
+                  isComplete ? 'Unmark season' : 'Mark season watched',
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor:
@@ -200,6 +418,25 @@ class _SeasonProgressCard extends StatelessWidget {
                   foregroundColor: Colors.white,
                 ),
               ),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  await onRateSeason();
+                },
+                icon: const Icon(Icons.star, color: Colors.amber),
+                label: Text(
+                  seasonRating == null
+                      ? 'Rate season'
+                      : '${seasonRating!.toStringAsFixed(0)}/10',
+                ),
+              ),
+              if (onRemoveSeasonRating != null)
+                IconButton(
+                  tooltip: 'Remove season rating',
+                  onPressed: () async {
+                    await onRemoveSeasonRating!();
+                  },
+                  icon: const Icon(Icons.close, color: Colors.grey),
+                ),
             ],
           ),
           const SizedBox(height: 14),
@@ -221,14 +458,24 @@ class _SeasonProgressCard extends StatelessWidget {
 class _EpisodeTile extends StatelessWidget {
   final Episode episode;
   final bool isWatched;
-  final DateTime? watchedAt;
+  final DateTime? latestWatchAt;
+  final int watchCount;
+  final double? userRating;
   final Future<void> Function() onToggle;
+  final Future<void> Function() onRewatch;
+  final Future<void> Function() onRate;
+  final Future<void> Function()? onRemoveRating;
 
   const _EpisodeTile({
     required this.episode,
     required this.isWatched,
-    required this.watchedAt,
+    required this.latestWatchAt,
+    required this.watchCount,
+    required this.userRating,
     required this.onToggle,
+    required this.onRewatch,
+    required this.onRate,
+    required this.onRemoveRating,
   });
 
   @override
@@ -266,12 +513,41 @@ class _EpisodeTile extends StatelessWidget {
           final info = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'E${episode.episodeNumber} • ${episode.name}',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'E${episode.episodeNumber} • ${episode.name}',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  if (userRating != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 9,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.star,
+                            size: 16,
+                            color: Colors.amber,
+                          ),
+                          const SizedBox(width: 4),
+                          Text('${userRating!.toStringAsFixed(0)}/10'),
+                        ],
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(height: 8),
               Wrap(
@@ -288,9 +564,11 @@ class _EpisodeTile extends StatelessWidget {
                       '${episode.runtimeMinutes} min',
                       style: const TextStyle(color: Colors.grey),
                     ),
-                  if (isWatched && watchedAt != null)
+                  if (isWatched && latestWatchAt != null)
                     Text(
-                      'Watched ${_formatDate(watchedAt!)}',
+                      watchCount > 1
+                          ? 'Watched $watchCount times • latest ${_formatDate(latestWatchAt!)}'
+                          : 'Watched ${_formatDate(latestWatchAt!)}',
                       style: const TextStyle(color: Colors.greenAccent),
                     ),
                 ],
@@ -308,25 +586,60 @@ class _EpisodeTile extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: 12),
-              ElevatedButton.icon(
-                onPressed: () async {
-                  await onToggle();
-                },
-                icon: Icon(
-                  isWatched
-                      ? Icons.check_circle
-                      : Icons.check_circle_outline,
-                ),
-                label: Text(
-                  isWatched
-                      ? 'Watched'
-                      : 'Mark episode watched',
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      isWatched ? Colors.green : Colors.grey[800],
-                  foregroundColor: Colors.white,
-                ),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      await onToggle();
+                    },
+                    icon: Icon(
+                      isWatched
+                          ? Icons.check_circle
+                          : Icons.check_circle_outline,
+                    ),
+                    label: Text(
+                      isWatched ? 'Watched' : 'Mark episode watched',
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor:
+                          isWatched ? Colors.green : Colors.grey[800],
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                  if (isWatched)
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        await onRewatch();
+                      },
+                      icon: const Icon(Icons.replay),
+                      label: const Text('Log Rewatch'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.deepPurple,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      await onRate();
+                    },
+                    icon: const Icon(Icons.star_border),
+                    label: Text(
+                      userRating == null
+                          ? 'Rate episode'
+                          : 'Change rating',
+                    ),
+                  ),
+                  if (onRemoveRating != null)
+                    IconButton(
+                      tooltip: 'Remove episode rating',
+                      onPressed: () async {
+                        await onRemoveRating!();
+                      },
+                      icon: const Icon(Icons.close, color: Colors.grey),
+                    ),
+                ],
               ),
             ],
           );

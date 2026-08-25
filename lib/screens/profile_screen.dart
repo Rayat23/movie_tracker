@@ -41,6 +41,8 @@ class ProfileScreen extends StatelessWidget {
     final movieMinutes = favorites.totalMovieMinutes;
     final tvMinutes = seriesTracking.totalTvMinutes;
     final totalMinutes = movieMinutes + tvMinutes;
+    final totalRewatches =
+        favorites.totalMovieRewatches + seriesTracking.totalTvRewatches;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -65,7 +67,7 @@ class ProfileScreen extends StatelessWidget {
                         ),
                         SizedBox(height: 8),
                         Text(
-                          'Movies, TV progress, ratings, diary, and total watch time.',
+                          'Movies, TV completion, ratings, rewatches, diary, and total watch time.',
                           style: TextStyle(
                             fontSize: 15,
                             color: Colors.grey,
@@ -104,16 +106,46 @@ class ProfileScreen extends StatelessWidget {
                     iconColor: Colors.green,
                   ),
                   _buildStatCard(
+                    icon: Icons.replay_circle_filled,
+                    title: 'Movie Watches',
+                    value: '${favorites.totalMovieWatchEvents}',
+                    iconColor: Colors.deepPurpleAccent,
+                  ),
+                  _buildStatCard(
                     icon: Icons.tv,
                     title: 'Series Started',
                     value: '${seriesTracking.watchedSeriesCount}',
                     iconColor: Colors.lightBlueAccent,
                   ),
                   _buildStatCard(
+                    icon: Icons.task_alt,
+                    title: 'Series Completed',
+                    value: '${seriesTracking.completedSeriesCount}',
+                    iconColor: Colors.greenAccent,
+                  ),
+                  _buildStatCard(
+                    icon: Icons.video_library,
+                    title: 'Seasons Completed',
+                    value: '${seriesTracking.completedSeasonCount}',
+                    iconColor: Colors.tealAccent,
+                  ),
+                  _buildStatCard(
                     icon: Icons.play_circle,
                     title: 'Episodes Watched',
                     value: '${seriesTracking.totalWatchedEpisodes}',
                     iconColor: Colors.greenAccent,
+                  ),
+                  _buildStatCard(
+                    icon: Icons.replay,
+                    title: 'Episode Watches',
+                    value: '${seriesTracking.totalTvWatchEvents}',
+                    iconColor: Colors.deepPurpleAccent,
+                  ),
+                  _buildStatCard(
+                    icon: Icons.repeat,
+                    title: 'Total Rewatches',
+                    value: '$totalRewatches',
+                    iconColor: Colors.purpleAccent,
                   ),
                   _buildStatCard(
                     icon: Icons.movie_filter,
@@ -152,11 +184,37 @@ class ProfileScreen extends StatelessWidget {
                     iconColor: Colors.amber,
                   ),
                   _buildStatCard(
+                    icon: Icons.star_half,
+                    title: 'Series Rated',
+                    value: '${seriesTracking.ratedSeriesCount}',
+                    iconColor: Colors.amber,
+                  ),
+                  _buildStatCard(
+                    icon: Icons.stars,
+                    title: 'Seasons Rated',
+                    value: '${seriesTracking.ratedSeasonsCount}',
+                    iconColor: Colors.amber,
+                  ),
+                  _buildStatCard(
+                    icon: Icons.grade,
+                    title: 'Episodes Rated',
+                    value: '${seriesTracking.ratedEpisodesCount}',
+                    iconColor: Colors.amber,
+                  ),
+                  _buildStatCard(
                     icon: Icons.bar_chart,
                     title: 'Average Movie Rating',
                     value: ratedMovies.isEmpty
                         ? '—'
                         : '${averageRating.toStringAsFixed(1)}/10',
+                    iconColor: Colors.amber,
+                  ),
+                  _buildStatCard(
+                    icon: Icons.query_stats,
+                    title: 'Average Series Rating',
+                    value: seriesTracking.ratedSeriesCount == 0
+                        ? '—'
+                        : '${seriesTracking.averageSeriesRating.toStringAsFixed(1)}/10',
                     iconColor: Colors.amber,
                   ),
                 ],
@@ -175,7 +233,7 @@ class ProfileScreen extends StatelessWidget {
                     SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Movie runtime is fetched from TMDB when you open a movie details page. Older watched movies may show 0 watch time until you open their details once.',
+                        'Series and season completion use TMDB episode totals saved when you track a season or episode. Older TV activity may need one new tracking action before completion totals are fully backfilled. Watch-time totals include rewatches.',
                         style: TextStyle(color: Colors.white70),
                       ),
                     ),
