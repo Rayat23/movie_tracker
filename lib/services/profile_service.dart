@@ -156,7 +156,7 @@ class ProfileService {
     if (index == -1) return;
 
     _profiles[index] = _profiles[index].copyWith(
-      avatarIndex: avatarIndex.clamp(0, 7),
+      avatarIndex: avatarIndex.clamp(0, 7).toInt(),
     );
 
     final prefs = await SharedPreferences.getInstance();
