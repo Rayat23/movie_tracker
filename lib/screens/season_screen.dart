@@ -135,7 +135,7 @@ class _SeasonScreenState extends State<SeasonScreen> {
                     episode,
                   );
 
-                  if (!mounted) return;
+                  if (!mounted || !context.mounted) return;
                   setState(() {});
 
                   final count = tracking.episodeWatchCount(
