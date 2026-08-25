@@ -106,7 +106,11 @@ class _SeasonScreenState extends State<SeasonScreen> {
                 widget.show.id,
                 episode.id,
               );
-              final watchedAt = tracking.watchedDateForEpisode(
+              final latestWatchAt = tracking.latestWatchDateForEpisode(
+                widget.show.id,
+                episode.id,
+              );
+              final watchCount = tracking.episodeWatchCount(
                 widget.show.id,
                 episode.id,
               );
@@ -114,7 +118,8 @@ class _SeasonScreenState extends State<SeasonScreen> {
               return _EpisodeTile(
                 episode: episode,
                 isWatched: isWatched,
-                watchedAt: watchedAt,
+                latestWatchAt: latestWatchAt,
+                watchCount: watchCount,
                 onToggle: () async {
                   await tracking.toggleEpisodeWatched(
                     widget.show,
@@ -123,6 +128,31 @@ class _SeasonScreenState extends State<SeasonScreen> {
 
                   if (!mounted) return;
                   setState(() {});
+                },
+                onRewatch: () async {
+                  await tracking.logEpisodeRewatch(
+                    widget.show,
+                    episode,
+                  );
+
+                  if (!mounted) return;
+                  setState(() {});
+
+                  final count = tracking.episodeWatchCount(
+                    widget.show.id,
+                    episode.id,
+                  );
+
+                  ScaffoldMessenger.of(context)
+                    ..hideCurrentSnackBar()
+                    ..showSnackBar(
+                      SnackBar(
+                        duration: const Duration(seconds: 1),
+                        content: Text(
+                          'Rewatch logged • $count total watches',
+                        ),
+                      ),
+                    );
                 },
               );
             },
@@ -185,14 +215,10 @@ class _SeasonProgressCard extends StatelessWidget {
                   await onToggleSeason();
                 },
                 icon: Icon(
-                  isComplete
-                      ? Icons.replay
-                      : Icons.done_all,
+                  isComplete ? Icons.replay : Icons.done_all,
                 ),
                 label: Text(
-                  isComplete
-                      ? 'Unmark season'
-                      : 'Mark season watched',
+                  isComplete ? 'Unmark season' : 'Mark season watched',
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor:
@@ -221,14 +247,18 @@ class _SeasonProgressCard extends StatelessWidget {
 class _EpisodeTile extends StatelessWidget {
   final Episode episode;
   final bool isWatched;
-  final DateTime? watchedAt;
+  final DateTime? latestWatchAt;
+  final int watchCount;
   final Future<void> Function() onToggle;
+  final Future<void> Function() onRewatch;
 
   const _EpisodeTile({
     required this.episode,
     required this.isWatched,
-    required this.watchedAt,
+    required this.latestWatchAt,
+    required this.watchCount,
     required this.onToggle,
+    required this.onRewatch,
   });
 
   @override
@@ -288,9 +318,11 @@ class _EpisodeTile extends StatelessWidget {
                       '${episode.runtimeMinutes} min',
                       style: const TextStyle(color: Colors.grey),
                     ),
-                  if (isWatched && watchedAt != null)
+                  if (isWatched && latestWatchAt != null)
                     Text(
-                      'Watched ${_formatDate(watchedAt!)}',
+                      watchCount > 1
+                          ? 'Watched $watchCount times • latest ${_formatDate(latestWatchAt!)}'
+                          : 'Watched ${_formatDate(latestWatchAt!)}',
                       style: const TextStyle(color: Colors.greenAccent),
                     ),
                 ],
@@ -308,25 +340,41 @@ class _EpisodeTile extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: 12),
-              ElevatedButton.icon(
-                onPressed: () async {
-                  await onToggle();
-                },
-                icon: Icon(
-                  isWatched
-                      ? Icons.check_circle
-                      : Icons.check_circle_outline,
-                ),
-                label: Text(
-                  isWatched
-                      ? 'Watched'
-                      : 'Mark episode watched',
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      isWatched ? Colors.green : Colors.grey[800],
-                  foregroundColor: Colors.white,
-                ),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      await onToggle();
+                    },
+                    icon: Icon(
+                      isWatched
+                          ? Icons.check_circle
+                          : Icons.check_circle_outline,
+                    ),
+                    label: Text(
+                      isWatched ? 'Watched' : 'Mark episode watched',
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor:
+                          isWatched ? Colors.green : Colors.grey[800],
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                  if (isWatched)
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        await onRewatch();
+                      },
+                      icon: const Icon(Icons.replay),
+                      label: const Text('Log Rewatch'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.deepPurple,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                ],
               ),
             ],
           );
