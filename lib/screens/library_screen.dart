@@ -168,7 +168,7 @@ class _LibraryScreenState extends State<LibraryScreen>
         sliver: SliverGrid(
           gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
             maxCrossAxisExtent: 205,
-            mainAxisExtent: showUserRating ? 345 : 325,
+            mainAxisExtent: showUserRating ? 395 : 370,
             crossAxisSpacing: 16,
             mainAxisSpacing: 20,
           ),
@@ -212,7 +212,7 @@ class _LibraryScreenState extends State<LibraryScreen>
         sliver: SliverGrid(
           gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
             maxCrossAxisExtent: 205,
-            mainAxisExtent: showUserRating ? 345 : 325,
+            mainAxisExtent: showUserRating ? 395 : 370,
             crossAxisSpacing: 16,
             mainAxisSpacing: 20,
           ),
