@@ -113,189 +113,40 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return CustomScrollView(
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      slivers: [
-        SliverToBoxAdapter(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1280),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(22, 24, 22, 0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Discover',
-                      style: Theme.of(context).textTheme.headlineLarge,
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Search TMDB for movies and TV series, then add them to your personal profile.',
-                      style: TextStyle(
-                        color: Colors.white54,
-                        fontSize: 14,
-                        height: 1.4,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    _searchPanel(),
-                    const SizedBox(height: 18),
-                    _categorySelector(),
-                    const SizedBox(height: 22),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-        ..._bodySlivers(),
-        const SliverToBoxAdapter(child: SizedBox(height: 32)),
-      ],
-    );
-  }
-
-  List<Widget> _bodySlivers() {
-    if (isLoading) {
-      return [
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 70),
-            child: _centeredState(
-              const Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 14),
-                  Text(
-                    'Searching TMDB...',
-                    style: TextStyle(color: Colors.white54),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ];
-    }
-
-    if (errorMessage != null) {
-      return [
-        SliverToBoxAdapter(
-          child: _messageState(
-            icon: Icons.wifi_off_rounded,
-            title: 'Search unavailable',
-            message: errorMessage!,
-          ),
-        ),
-      ];
-    }
-
-    if (!hasSearched) {
-      return [
-        SliverToBoxAdapter(
-          child: _messageState(
-            icon: categoryIndex == 0
-                ? Icons.local_movies_outlined
-                : Icons.live_tv_outlined,
-            title: categoryIndex == 0
-                ? 'Find your next movie'
-                : 'Find your next series',
-            message: categoryIndex == 0
-                ? 'Search by movie title and add results to Favorites, Watchlist, or Watched.'
-                : 'Search for a TV series, then track seasons and individual episodes.',
-          ),
-        ),
-      ];
-    }
-
-    final resultCount =
-        categoryIndex == 0 ? movieResults.length : tvResults.length;
-
-    if (resultCount == 0) {
-      return [
-        SliverToBoxAdapter(
-          child: _messageState(
-            icon: Icons.search_off_rounded,
-            title: 'No results for “$lastQuery”',
-            message: 'Try another spelling or a shorter title.',
-          ),
-        ),
-      ];
-    }
-
-    return [
-      SliverToBoxAdapter(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1280),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(22, 0, 22, 14),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Results for “$lastQuery”',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.white10),
-                    ),
-                    child: Text(
-                      '$resultCount results',
-                      style: const TextStyle(
-                        color: Colors.white54,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-      SliverPadding(
-        padding: const EdgeInsets.fromLTRB(22, 0, 22, 18),
-        sliver: SliverGrid(
-          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-            maxCrossAxisExtent: 205,
-            mainAxisExtent: 325,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 20,
-          ),
-          delegate: SliverChildBuilderDelegate(
-            (context, index) {
-              if (categoryIndex == 0) {
-                return MovieCard(movie: movieResults[index]);
-              }
-              return TvShowCard(show: tvResults[index]);
-            },
-            childCount: resultCount,
-          ),
-        ),
-      ),
-    ];
-  }
-
-  Widget _centeredState(Widget child) {
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 1280),
-        child: child,
+        child: CustomScrollView(
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(22, 24, 22, 18),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  Text(
+                    'Discover',
+                    style: Theme.of(context).textTheme.headlineLarge,
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Search TMDB for movies and TV series, then add them to your personal profile.',
+                    style: TextStyle(
+                      color: Colors.white54,
+                      fontSize: 14,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  _searchPanel(),
+                  const SizedBox(height: 18),
+                  _categorySelector(),
+                  const SizedBox(height: 18),
+                ]),
+              ),
+            ),
+            ..._buildBodySlivers(),
+            const SliverToBoxAdapter(child: SizedBox(height: 30)),
+          ],
+        ),
       ),
     );
   }
@@ -409,10 +260,7 @@ class _SearchScreenState extends State<SearchScreen> {
           padding: const EdgeInsets.symmetric(vertical: 13),
           decoration: BoxDecoration(
             color: selected
-                ? Theme.of(context)
-                    .colorScheme
-                    .primary
-                    .withValues(alpha: 0.18)
+                ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.18)
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(13),
           ),
@@ -439,55 +287,190 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
+  List<Widget> _buildBodySlivers() {
+    if (isLoading) {
+      return [
+        const SliverFillRemaining(
+          hasScrollBody: false,
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 14),
+                Text(
+                  'Searching TMDB...',
+                  style: TextStyle(color: Colors.white54),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ];
+    }
+
+    if (errorMessage != null) {
+      return [_messageSliver(Icons.wifi_off_rounded, 'Search unavailable', errorMessage!)];
+    }
+
+    if (!hasSearched) {
+      return [
+        _messageSliver(
+          categoryIndex == 0
+              ? Icons.local_movies_outlined
+              : Icons.live_tv_outlined,
+          categoryIndex == 0 ? 'Find your next movie' : 'Find your next series',
+          categoryIndex == 0
+              ? 'Search by movie title and add results to Favorites, Watchlist, or Watched.'
+              : 'Search for a TV series, then track seasons and individual episodes.',
+        ),
+      ];
+    }
+
+    final resultCount = categoryIndex == 0 ? movieResults.length : tvResults.length;
+
+    if (resultCount == 0) {
+      return [
+        _messageSliver(
+          Icons.search_off_rounded,
+          'No results for “$lastQuery”',
+          'Try another spelling or a shorter title.',
+        ),
+      ];
+    }
+
+    return [
+      SliverPadding(
+        padding: const EdgeInsets.fromLTRB(22, 0, 22, 14),
+        sliver: SliverToBoxAdapter(child: _resultsHeader(resultCount)),
+      ),
+      SliverPadding(
+        padding: const EdgeInsets.fromLTRB(22, 0, 22, 18),
+        sliver: categoryIndex == 0 ? _movieGrid() : _tvGrid(),
+      ),
+    ];
+  }
+
+  Widget _resultsHeader(int resultCount) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            'Results for “$lastQuery”',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white10),
+          ),
+          child: Text(
+            '$resultCount results',
+            style: const TextStyle(
+              color: Colors.white54,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _movieGrid() {
+    return SliverGrid(
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 205,
+        mainAxisExtent: 370,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 20,
+      ),
+      delegate: SliverChildBuilderDelegate(
+        (context, index) => MovieCard(movie: movieResults[index]),
+        childCount: movieResults.length,
+      ),
+    );
+  }
+
+  Widget _tvGrid() {
+    return SliverGrid(
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 205,
+        mainAxisExtent: 370,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 20,
+      ),
+      delegate: SliverChildBuilderDelegate(
+        (context, index) => TvShowCard(show: tvResults[index]),
+        childCount: tvResults.length,
+      ),
+    );
+  }
+
+  Widget _messageSliver(IconData icon, String title, String message) {
+    return SliverPadding(
+      padding: const EdgeInsets.fromLTRB(22, 0, 22, 30),
+      sliver: SliverToBoxAdapter(
+        child: _messageState(icon: icon, title: title, message: message),
+      ),
+    );
+  }
+
   Widget _messageState({
     required IconData icon,
     required String title,
     required String message,
   }) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(22, 24, 22, 40),
-      child: Center(
-        child: Container(
-          width: double.infinity,
-          constraints: const BoxConstraints(maxWidth: 560),
-          padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 44),
-          decoration: BoxDecoration(
-            color: const Color(0xFF11131A),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: Colors.white10),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 74,
-                height: 74,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.05),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, size: 35, color: Colors.white38),
+    return Center(
+      child: Container(
+        width: double.infinity,
+        constraints: const BoxConstraints(maxWidth: 560),
+        padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 44),
+        decoration: BoxDecoration(
+          color: const Color(0xFF11131A),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: Colors.white10),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 74,
+              height: 74,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.05),
+                shape: BoxShape.circle,
               ),
-              const SizedBox(height: 18),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 21,
-                  fontWeight: FontWeight.w800,
-                ),
+              child: Icon(icon, size: 35, color: Colors.white38),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 21,
+                fontWeight: FontWeight.w800,
               ),
-              const SizedBox(height: 8),
-              Text(
-                message,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.white54,
-                  height: 1.45,
-                ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white54,
+                height: 1.45,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
