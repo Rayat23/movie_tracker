@@ -62,7 +62,7 @@ class ProfileScreen extends StatelessWidget {
               const SizedBox(height: 6),
               const Text(
                 'Everything below belongs only to the active profile.',
-                style: TextStyle(color: Colors.white46),
+                style: TextStyle(color: Colors.white54),
               ),
               const SizedBox(height: 18),
               Wrap(
@@ -268,7 +268,7 @@ class ProfileScreen extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             title,
-            style: const TextStyle(fontSize: 12, color: Colors.white46),
+            style: const TextStyle(fontSize: 12, color: Colors.white54),
           ),
         ],
       ),
