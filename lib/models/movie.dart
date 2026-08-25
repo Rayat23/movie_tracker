@@ -2,6 +2,7 @@ class Movie {
   final int id;
   final String title;
   final String posterPath;
+  final String backdropPath;
   final double rating;
   final String releaseDate;
   final String overview;
@@ -11,6 +12,7 @@ class Movie {
     required this.id,
     required this.title,
     required this.posterPath,
+    this.backdropPath = '',
     required this.rating,
     required this.releaseDate,
     required this.overview,
@@ -25,6 +27,7 @@ class Movie {
           json['name'] as String? ??
           'Unknown title',
       posterPath: json['poster_path'] as String? ?? '',
+      backdropPath: json['backdrop_path'] as String? ?? '',
       rating: (json['vote_average'] as num?)?.toDouble() ?? 0.0,
       releaseDate:
           json['release_date'] as String? ??
@@ -40,6 +43,7 @@ class Movie {
       'id': id,
       'title': title,
       'poster_path': posterPath,
+      'backdrop_path': backdropPath,
       'vote_average': rating,
       'release_date': releaseDate,
       'overview': overview,
@@ -47,7 +51,8 @@ class Movie {
     };
   }
 
-  String get posterUrl {
-    return 'https://image.tmdb.org/t/p/w500$posterPath';
-  }
+  String get posterUrl => 'https://image.tmdb.org/t/p/w500$posterPath';
+
+  String get backdropUrl =>
+      'https://image.tmdb.org/t/p/original$backdropPath';
 }
