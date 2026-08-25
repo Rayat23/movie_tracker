@@ -14,11 +14,13 @@ class SeriesTrackingService {
       SeriesTrackingService._privateConstructor();
 
   static const String _watchedStorageKey = 'watched_tv_episodes_v1';
+  static const String _rewatchStorageKey = 'rewatched_tv_episodes_v1';
   static const String _favoritesStorageKey = 'favorite_tv_shows_v1';
   static const String _watchlistStorageKey = 'watchlist_tv_shows_v1';
   static const String _ratingsStorageKey = 'tv_show_ratings_v1';
 
   final List<TvWatchEntry> _entries = [];
+  final List<TvWatchEntry> _rewatches = [];
   final List<TvShow> _favorites = [];
   final List<TvShow> _watchlist = [];
   final Map<int, double> _ratings = {};
@@ -29,8 +31,22 @@ class SeriesTrackingService {
     return List.unmodifiable(copy);
   }
 
-  List<TvShow> get favorites => List.unmodifiable(_favorites);
+  List<TvWatchEntry> get rewatchEpisodes {
+    final copy = List<TvWatchEntry>.from(_rewatches);
+    copy.sort((a, b) => b.watchedAt.compareTo(a.watchedAt));
+    return List.unmodifiable(copy);
+  }
 
+  List<TvWatchEntry> get allWatchEvents {
+    final copy = <TvWatchEntry>[
+      ..._entries,
+      ..._rewatches,
+    ];
+    copy.sort((a, b) => b.watchedAt.compareTo(a.watchedAt));
+    return List.unmodifiable(copy);
+  }
+
+  List<TvShow> get favorites => List.unmodifiable(_favorites);
   List<TvShow> get watchlist => List.unmodifiable(_watchlist);
 
   List<TvShow> get startedShows {
@@ -55,8 +71,10 @@ class SeriesTrackingService {
   }
 
   int get totalWatchedEpisodes => _entries.length;
+  int get totalTvRewatches => _rewatches.length;
+  int get totalTvWatchEvents => _entries.length + _rewatches.length;
 
-  int get totalTvMinutes => _entries.fold(
+  int get totalTvMinutes => allWatchEvents.fold(
         0,
         (total, entry) => total + entry.runtimeMinutes,
       );
@@ -80,7 +98,8 @@ class SeriesTrackingService {
   Future<void> loadAll() async {
     final prefs = await SharedPreferences.getInstance();
 
-    _loadWatchedEntries(prefs.getString(_watchedStorageKey));
+    _loadWatchedEntries(prefs.getString(_watchedStorageKey), _entries);
+    _loadWatchedEntries(prefs.getString(_rewatchStorageKey), _rewatches);
     _loadShowList(
       prefs.getString(_favoritesStorageKey),
       _favorites,
@@ -92,8 +111,8 @@ class SeriesTrackingService {
     _loadRatings(prefs.getString(_ratingsStorageKey));
   }
 
-  void _loadWatchedEntries(String? stored) {
-    _entries.clear();
+  void _loadWatchedEntries(String? stored, List<TvWatchEntry> target) {
+    target.clear();
 
     if (stored == null || stored.isEmpty) {
       return;
@@ -101,7 +120,7 @@ class SeriesTrackingService {
 
     final decoded = jsonDecode(stored) as List<dynamic>;
 
-    _entries.addAll(
+    target.addAll(
       decoded.map(
         (item) => TvWatchEntry.fromJson(
           item as Map<String, dynamic>,
@@ -177,6 +196,26 @@ class SeriesTrackingService {
     return null;
   }
 
+  DateTime? latestWatchDateForEpisode(int showId, int episodeId) {
+    final dates = allWatchEvents
+        .where(
+          (entry) => entry.showId == showId && entry.episodeId == episodeId,
+        )
+        .map((entry) => entry.watchedAt)
+        .toList()
+      ..sort();
+
+    return dates.isEmpty ? null : dates.last;
+  }
+
+  int episodeWatchCount(int showId, int episodeId) {
+    return allWatchEvents
+        .where(
+          (entry) => entry.showId == showId && entry.episodeId == episodeId,
+        )
+        .length;
+  }
+
   int watchedEpisodeCountForShow(int showId) {
     return _entries.where((entry) => entry.showId == showId).length;
   }
@@ -192,7 +231,7 @@ class SeriesTrackingService {
   }
 
   int watchedMinutesForShow(int showId) {
-    return _entries
+    return allWatchEvents
         .where((entry) => entry.showId == showId)
         .fold(0, (total, entry) => total + entry.runtimeMinutes);
   }
@@ -236,6 +275,10 @@ class SeriesTrackingService {
         (entry) =>
             entry.showId == show.id && entry.episodeId == episode.id,
       );
+      _rewatches.removeWhere(
+        (entry) =>
+            entry.showId == show.id && entry.episodeId == episode.id,
+      );
     } else {
       _entries.add(
         _entryFromEpisode(
@@ -245,6 +288,11 @@ class SeriesTrackingService {
         ),
       );
 
+      _rewatches.removeWhere(
+        (entry) =>
+            entry.showId == show.id && entry.episodeId == episode.id,
+      );
+
       if (isInWatchlist(show)) {
         _watchlist.removeWhere((item) => item.id == show.id);
         await _saveShowList(_watchlistStorageKey, _watchlist);
@@ -252,6 +300,24 @@ class SeriesTrackingService {
     }
 
     await _saveWatchedEntries();
+    await _saveRewatchEntries();
+  }
+
+  Future<void> logEpisodeRewatch(
+    TvShow show,
+    Episode episode,
+  ) async {
+    if (!isEpisodeWatched(show.id, episode.id)) return;
+
+    _rewatches.add(
+      _entryFromEpisode(
+        show,
+        episode,
+        DateTime.now(),
+      ),
+    );
+
+    await _saveRewatchEntries();
   }
 
   Future<void> setSeasonWatched({
@@ -281,9 +347,15 @@ class SeriesTrackingService {
             entry.showId == show.id &&
             entry.seasonNumber == season.seasonNumber,
       );
+      _rewatches.removeWhere(
+        (entry) =>
+            entry.showId == show.id &&
+            entry.seasonNumber == season.seasonNumber,
+      );
     }
 
     await _saveWatchedEntries();
+    await _saveRewatchEntries();
   }
 
   TvWatchEntry _entryFromEpisode(
@@ -312,6 +384,15 @@ class SeriesTrackingService {
     );
 
     await prefs.setString(_watchedStorageKey, encoded);
+  }
+
+  Future<void> _saveRewatchEntries() async {
+    final prefs = await SharedPreferences.getInstance();
+    final encoded = jsonEncode(
+      _rewatches.map((entry) => entry.toJson()).toList(),
+    );
+
+    await prefs.setString(_rewatchStorageKey, encoded);
   }
 
   Future<void> _saveShowList(
