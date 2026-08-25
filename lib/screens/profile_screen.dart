@@ -305,8 +305,8 @@ class ProfileScreen extends StatelessWidget {
 
         return InkWell(
           borderRadius: BorderRadius.circular(14),
-          onTap: () {
-            Navigator.push(
+          onTap: () async {
+            await Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (context) => DetailsScreen(movie: movie),
