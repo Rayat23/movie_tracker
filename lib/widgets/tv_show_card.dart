@@ -2,26 +2,35 @@ import 'package:flutter/material.dart';
 
 import '../models/tv_show.dart';
 import '../screens/tv_details_screen.dart';
+import '../services/series_tracking_service.dart';
 
 class TvShowCard extends StatelessWidget {
   final TvShow show;
+  final VoidCallback? onReturn;
+  final bool showUserRating;
 
   const TvShowCard({
     super.key,
     required this.show,
+    this.onReturn,
+    this.showUserRating = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final userRating = SeriesTrackingService.instance.getUserRating(show);
+
     return InkWell(
       borderRadius: BorderRadius.circular(12),
-      onTap: () {
-        Navigator.push(
+      onTap: () async {
+        await Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => TvDetailsScreen(show: show),
           ),
         );
+
+        onReturn?.call();
       },
       child: SizedBox(
         width: 160,
@@ -69,6 +78,31 @@ class TvShowCard extends StatelessWidget {
                 ),
               ],
             ),
+            if (showUserRating) ...[
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Icon(
+                    userRating != null ? Icons.star : Icons.star_border,
+                    size: 17,
+                    color: userRating != null ? Colors.amber : Colors.grey,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    userRating != null
+                        ? 'You ${userRating.toStringAsFixed(0)}/10'
+                        : 'Not rated',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: userRating != null
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                      color: userRating != null ? Colors.white : Colors.grey,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
