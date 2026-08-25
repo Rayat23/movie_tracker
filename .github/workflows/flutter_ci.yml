@@ -2,9 +2,13 @@ name: Flutter CI
 
 on:
   push:
-    branches: [main, automation/tv-foundation]
+    branches: [main]
   pull_request:
     branches: [main]
+
+concurrency:
+  group: flutter-ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   analyze-and-build-web:
