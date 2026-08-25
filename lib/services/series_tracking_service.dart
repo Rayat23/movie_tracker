@@ -18,12 +18,23 @@ class SeriesTrackingService {
   static const String _favoritesStorageKey = 'favorite_tv_shows_v1';
   static const String _watchlistStorageKey = 'watchlist_tv_shows_v1';
   static const String _ratingsStorageKey = 'tv_show_ratings_v1';
+  static const String _seasonRatingsStorageKey = 'tv_season_ratings_v1';
+  static const String _episodeRatingsStorageKey = 'tv_episode_ratings_v1';
+  static const String _showEpisodeTotalsStorageKey =
+      'tv_show_episode_totals_v1';
+  static const String _seasonEpisodeTotalsStorageKey =
+      'tv_season_episode_totals_v1';
 
   final List<TvWatchEntry> _entries = [];
   final List<TvWatchEntry> _rewatches = [];
   final List<TvShow> _favorites = [];
   final List<TvShow> _watchlist = [];
+
   final Map<int, double> _ratings = {};
+  final Map<String, double> _seasonRatings = {};
+  final Map<String, double> _episodeRatings = {};
+  final Map<int, int> _showEpisodeTotals = {};
+  final Map<String, int> _seasonEpisodeTotals = {};
 
   List<TvWatchEntry> get watchedEpisodes {
     final copy = List<TvWatchEntry>.from(_entries);
@@ -83,6 +94,44 @@ class SeriesTrackingService {
       _entries.map((entry) => entry.showId).toSet().length;
 
   int get ratedSeriesCount => _ratings.length;
+  int get ratedSeasonsCount => _seasonRatings.length;
+  int get ratedEpisodesCount => _episodeRatings.length;
+
+  int get completedSeriesCount {
+    int count = 0;
+
+    for (final item in _showEpisodeTotals.entries) {
+      if (item.value > 0 &&
+          watchedEpisodeCountForShow(item.key) >= item.value) {
+        count++;
+      }
+    }
+
+    return count;
+  }
+
+  int get completedSeasonCount {
+    int count = 0;
+
+    for (final item in _seasonEpisodeTotals.entries) {
+      final parts = item.key.split(':');
+      if (parts.length != 2) continue;
+
+      final showId = int.tryParse(parts[0]);
+      final seasonNumber = int.tryParse(parts[1]);
+
+      if (showId == null || seasonNumber == null || seasonNumber <= 0) {
+        continue;
+      }
+
+      if (item.value > 0 &&
+          watchedEpisodeCountForSeason(showId, seasonNumber) >= item.value) {
+        count++;
+      }
+    }
+
+    return count;
+  }
 
   double get averageSeriesRating {
     if (_ratings.isEmpty) return 0;
@@ -109,6 +158,22 @@ class SeriesTrackingService {
       _watchlist,
     );
     _loadRatings(prefs.getString(_ratingsStorageKey));
+    _loadStringDoubleMap(
+      prefs.getString(_seasonRatingsStorageKey),
+      _seasonRatings,
+    );
+    _loadStringDoubleMap(
+      prefs.getString(_episodeRatingsStorageKey),
+      _episodeRatings,
+    );
+    _loadIntIntMap(
+      prefs.getString(_showEpisodeTotalsStorageKey),
+      _showEpisodeTotals,
+    );
+    _loadStringIntMap(
+      prefs.getString(_seasonEpisodeTotalsStorageKey),
+      _seasonEpisodeTotals,
+    );
   }
 
   void _loadWatchedEntries(String? stored, List<TvWatchEntry> target) {
@@ -168,6 +233,58 @@ class SeriesTrackingService {
     });
   }
 
+  void _loadStringDoubleMap(
+    String? stored,
+    Map<String, double> target,
+  ) {
+    target.clear();
+
+    if (stored == null || stored.isEmpty) return;
+
+    final decoded = jsonDecode(stored) as Map<String, dynamic>;
+
+    decoded.forEach((key, value) {
+      if (value is num) {
+        target[key] = value.toDouble();
+      }
+    });
+  }
+
+  void _loadIntIntMap(
+    String? stored,
+    Map<int, int> target,
+  ) {
+    target.clear();
+
+    if (stored == null || stored.isEmpty) return;
+
+    final decoded = jsonDecode(stored) as Map<String, dynamic>;
+
+    decoded.forEach((key, value) {
+      final parsedKey = int.tryParse(key);
+      if (parsedKey != null && value is num) {
+        target[parsedKey] = value.toInt();
+      }
+    });
+  }
+
+  void _loadStringIntMap(
+    String? stored,
+    Map<String, int> target,
+  ) {
+    target.clear();
+
+    if (stored == null || stored.isEmpty) return;
+
+    final decoded = jsonDecode(stored) as Map<String, dynamic>;
+
+    decoded.forEach((key, value) {
+      if (value is num) {
+        target[key] = value.toInt();
+      }
+    });
+  }
+
   bool isFavorite(TvShow show) {
     return _favorites.any((item) => item.id == show.id);
   }
@@ -180,10 +297,29 @@ class SeriesTrackingService {
     return _ratings[show.id];
   }
 
+  double? getSeasonRating(int showId, int seasonNumber) {
+    return _seasonRatings[_seasonKey(showId, seasonNumber)];
+  }
+
+  double? getEpisodeRating(int showId, int episodeId) {
+    return _episodeRatings[_episodeKey(showId, episodeId)];
+  }
+
   bool isEpisodeWatched(int showId, int episodeId) {
     return _entries.any(
       (entry) => entry.showId == showId && entry.episodeId == episodeId,
     );
+  }
+
+  bool isShowComplete(int showId) {
+    final total = _showEpisodeTotals[showId] ?? 0;
+    return total > 0 && watchedEpisodeCountForShow(showId) >= total;
+  }
+
+  bool isSeasonComplete(int showId, int seasonNumber) {
+    final total = _seasonEpisodeTotals[_seasonKey(showId, seasonNumber)] ?? 0;
+    return total > 0 &&
+        watchedEpisodeCountForSeason(showId, seasonNumber) >= total;
   }
 
   DateTime? watchedDateForEpisode(int showId, int episodeId) {
@@ -266,10 +402,59 @@ class SeriesTrackingService {
     await _saveRatings();
   }
 
+  Future<void> setSeasonRating(
+    int showId,
+    int seasonNumber,
+    double rating,
+  ) async {
+    _seasonRatings[_seasonKey(showId, seasonNumber)] =
+        rating.clamp(1, 10).toDouble();
+    await _saveStringDoubleMap(
+      _seasonRatingsStorageKey,
+      _seasonRatings,
+    );
+  }
+
+  Future<void> removeSeasonRating(int showId, int seasonNumber) async {
+    _seasonRatings.remove(_seasonKey(showId, seasonNumber));
+    await _saveStringDoubleMap(
+      _seasonRatingsStorageKey,
+      _seasonRatings,
+    );
+  }
+
+  Future<void> setEpisodeRating(
+    int showId,
+    int episodeId,
+    double rating,
+  ) async {
+    _episodeRatings[_episodeKey(showId, episodeId)] =
+        rating.clamp(1, 10).toDouble();
+    await _saveStringDoubleMap(
+      _episodeRatingsStorageKey,
+      _episodeRatings,
+    );
+  }
+
+  Future<void> removeEpisodeRating(int showId, int episodeId) async {
+    _episodeRatings.remove(_episodeKey(showId, episodeId));
+    await _saveStringDoubleMap(
+      _episodeRatingsStorageKey,
+      _episodeRatings,
+    );
+  }
+
   Future<void> toggleEpisodeWatched(
     TvShow show,
-    Episode episode,
-  ) async {
+    Episode episode, {
+    int? seasonEpisodeCount,
+  }) async {
+    await _rememberProgressMetadata(
+      show: show,
+      seasonNumber: episode.seasonNumber,
+      seasonEpisodeCount: seasonEpisodeCount,
+    );
+
     if (isEpisodeWatched(show.id, episode.id)) {
       _entries.removeWhere(
         (entry) =>
@@ -305,9 +490,16 @@ class SeriesTrackingService {
 
   Future<void> logEpisodeRewatch(
     TvShow show,
-    Episode episode,
-  ) async {
+    Episode episode, {
+    int? seasonEpisodeCount,
+  }) async {
     if (!isEpisodeWatched(show.id, episode.id)) return;
+
+    await _rememberProgressMetadata(
+      show: show,
+      seasonNumber: episode.seasonNumber,
+      seasonEpisodeCount: seasonEpisodeCount,
+    );
 
     _rewatches.add(
       _entryFromEpisode(
@@ -326,6 +518,12 @@ class SeriesTrackingService {
     required List<Episode> episodes,
     required bool watched,
   }) async {
+    await _rememberProgressMetadata(
+      show: show,
+      seasonNumber: season.seasonNumber,
+      seasonEpisodeCount: season.episodeCount,
+    );
+
     if (watched) {
       final now = DateTime.now();
 
@@ -358,6 +556,43 @@ class SeriesTrackingService {
     await _saveRewatchEntries();
   }
 
+  Future<void> _rememberProgressMetadata({
+    required TvShow show,
+    required int seasonNumber,
+    int? seasonEpisodeCount,
+  }) async {
+    bool showChanged = false;
+    bool seasonChanged = false;
+
+    if (show.numberOfEpisodes > 0 &&
+        _showEpisodeTotals[show.id] != show.numberOfEpisodes) {
+      _showEpisodeTotals[show.id] = show.numberOfEpisodes;
+      showChanged = true;
+    }
+
+    if (seasonEpisodeCount != null && seasonEpisodeCount > 0) {
+      final key = _seasonKey(show.id, seasonNumber);
+      if (_seasonEpisodeTotals[key] != seasonEpisodeCount) {
+        _seasonEpisodeTotals[key] = seasonEpisodeCount;
+        seasonChanged = true;
+      }
+    }
+
+    if (showChanged) {
+      await _saveIntIntMap(
+        _showEpisodeTotalsStorageKey,
+        _showEpisodeTotals,
+      );
+    }
+
+    if (seasonChanged) {
+      await _saveStringIntMap(
+        _seasonEpisodeTotalsStorageKey,
+        _seasonEpisodeTotals,
+      );
+    }
+  }
+
   TvWatchEntry _entryFromEpisode(
     TvShow show,
     Episode episode,
@@ -375,6 +610,14 @@ class SeriesTrackingService {
       runtimeMinutes: episode.runtimeMinutes,
       watchedAt: watchedAt,
     );
+  }
+
+  String _seasonKey(int showId, int seasonNumber) {
+    return '$showId:$seasonNumber';
+  }
+
+  String _episodeKey(int showId, int episodeId) {
+    return '$showId:$episodeId';
   }
 
   Future<void> _saveWatchedEntries() async {
@@ -416,5 +659,34 @@ class SeriesTrackingService {
     );
 
     await prefs.setString(_ratingsStorageKey, encoded);
+  }
+
+  Future<void> _saveStringDoubleMap(
+    String key,
+    Map<String, double> values,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(key, jsonEncode(values));
+  }
+
+  Future<void> _saveIntIntMap(
+    String key,
+    Map<int, int> values,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+    final encoded = jsonEncode(
+      values.map(
+        (itemKey, value) => MapEntry(itemKey.toString(), value),
+      ),
+    );
+    await prefs.setString(key, encoded);
+  }
+
+  Future<void> _saveStringIntMap(
+    String key,
+    Map<String, int> values,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(key, jsonEncode(values));
   }
 }
