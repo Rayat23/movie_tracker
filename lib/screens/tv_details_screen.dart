@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/season.dart';
 import '../models/tv_show.dart';
+import '../services/series_tracking_service.dart';
 import '../services/tv_service.dart';
 import 'season_screen.dart';
 
@@ -19,6 +20,7 @@ class TvDetailsScreen extends StatefulWidget {
 
 class _TvDetailsScreenState extends State<TvDetailsScreen> {
   final TvService tvService = TvService();
+  final SeriesTrackingService tracking = SeriesTrackingService.instance;
 
   late Future<TvShow> detailsFuture;
   late Future<List<Season>> seasonsFuture;
@@ -137,6 +139,15 @@ class _TvDetailsScreenState extends State<TvDetailsScreen> {
                                 (season) => _SeasonCard(
                                   show: show,
                                   season: season,
+                                  watchedCount:
+                                      tracking.watchedEpisodeCountForSeason(
+                                    show.id,
+                                    season.seasonNumber,
+                                  ),
+                                  onReturn: () {
+                                    if (!mounted) return;
+                                    setState(() {});
+                                  },
                                 ),
                               )
                               .toList(),
@@ -179,6 +190,13 @@ class _TvDetailsScreenState extends State<TvDetailsScreen> {
   }
 
   Widget _showInfo(TvShow show) {
+    final watchedEpisodes = tracking.watchedEpisodeCountForShow(show.id);
+    final totalEpisodes = show.numberOfEpisodes;
+    final progress = totalEpisodes > 0
+        ? watchedEpisodes / totalEpisodes
+        : 0.0;
+    final watchedMinutes = tracking.watchedMinutesForShow(show.id);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -221,22 +239,57 @@ class _TvDetailsScreenState extends State<TvDetailsScreen> {
         ),
         const SizedBox(height: 28),
         Container(
-          padding: const EdgeInsets.all(14),
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: Colors.grey[900],
             borderRadius: BorderRadius.circular(14),
           ),
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.track_changes, color: Colors.redAccent),
-              SizedBox(width: 10),
-              Flexible(
-                child: Text(
-                  'Series, season, and episode progress tracking is being connected next.',
-                  style: TextStyle(color: Colors.white70),
-                ),
+              Row(
+                children: [
+                  const Icon(Icons.track_changes, color: Colors.redAccent),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      totalEpisodes > 0
+                          ? '$watchedEpisodes of $totalEpisodes episodes watched'
+                          : '$watchedEpisodes episodes watched',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  if (watchedMinutes > 0)
+                    Text(
+                      _formatMinutes(watchedMinutes),
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                ],
               ),
+              if (totalEpisodes > 0) ...[
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: LinearProgressIndicator(
+                    value: progress.clamp(0.0, 1.0),
+                    minHeight: 9,
+                    backgroundColor: Colors.black26,
+                    color: progress >= 1 ? Colors.green : Colors.redAccent,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${(progress * 100).round()}% complete',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -273,23 +326,46 @@ class _TvDetailsScreenState extends State<TvDetailsScreen> {
       ],
     );
   }
+
+  String _formatMinutes(int minutes) {
+    final hours = minutes ~/ 60;
+    final remainingMinutes = minutes % 60;
+
+    if (hours == 0) {
+      return '$remainingMinutes min watched';
+    }
+
+    if (remainingMinutes == 0) {
+      return '${hours}h watched';
+    }
+
+    return '${hours}h ${remainingMinutes}m watched';
+  }
 }
 
 class _SeasonCard extends StatelessWidget {
   final TvShow show;
   final Season season;
+  final int watchedCount;
+  final VoidCallback onReturn;
 
   const _SeasonCard({
     required this.show,
     required this.season,
+    required this.watchedCount,
+    required this.onReturn,
   });
 
   @override
   Widget build(BuildContext context) {
+    final total = season.episodeCount;
+    final complete = total > 0 && watchedCount >= total;
+    final progress = total > 0 ? watchedCount / total : 0.0;
+
     return InkWell(
       borderRadius: BorderRadius.circular(12),
-      onTap: () {
-        Navigator.push(
+      onTap: () async {
+        await Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => SeasonScreen(
@@ -298,6 +374,8 @@ class _SeasonCard extends StatelessWidget {
             ),
           ),
         );
+
+        onReturn();
       },
       child: Container(
         width: 190,
@@ -305,6 +383,9 @@ class _SeasonCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.grey[900],
           borderRadius: BorderRadius.circular(12),
+          border: complete
+              ? Border.all(color: Colors.green.withValues(alpha: 0.45))
+              : null,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -332,12 +413,26 @@ class _SeasonCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              '${season.episodeCount} episodes',
-              style: const TextStyle(
+              total > 0
+                  ? '$watchedCount / $total episodes'
+                  : '$watchedCount watched',
+              style: TextStyle(
                 fontSize: 13,
-                color: Colors.grey,
+                color: complete ? Colors.greenAccent : Colors.grey,
               ),
             ),
+            if (total > 0) ...[
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: LinearProgressIndicator(
+                  value: progress.clamp(0.0, 1.0),
+                  minHeight: 6,
+                  backgroundColor: Colors.black26,
+                  color: complete ? Colors.green : Colors.redAccent,
+                ),
+              ),
+            ],
           ],
         ),
       ),
