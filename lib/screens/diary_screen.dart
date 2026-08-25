@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/tv_watch_entry.dart';
 import '../services/favorites_service.dart';
 import '../services/series_tracking_service.dart';
 
@@ -14,47 +15,65 @@ class DiaryScreen extends StatelessWidget {
     final records = <_DiaryRecord>[];
 
     for (final movie in favorites.watched) {
-      final watchedAt = favorites.getWatchedDate(movie);
-      if (watchedAt == null) continue;
+      final dates = favorites.getMovieWatchDates(movie);
 
-      records.add(
-        _DiaryRecord(
-          kind: 'Movie',
-          title: movie.title,
-          subtitle: favorites.getUserRating(movie) == null
-              ? 'Movie'
-              : 'Movie • Your rating ${favorites.getUserRating(movie)!.toStringAsFixed(0)}/10',
-          watchedAt: watchedAt,
-          imageUrl: movie.posterPath.isEmpty ? null : movie.posterUrl,
-          runtimeMinutes: movie.runtimeMinutes > 0 ? movie.runtimeMinutes : null,
-        ),
-      );
+      for (int index = 0; index < dates.length; index++) {
+        records.add(
+          _DiaryRecord(
+            kind: 'Movie',
+            title: movie.title,
+            subtitle: favorites.getUserRating(movie) == null
+                ? 'Movie'
+                : 'Movie • Your rating ${favorites.getUserRating(movie)!.toStringAsFixed(0)}/10',
+            watchedAt: dates[index],
+            imageUrl: movie.posterPath.isEmpty ? null : movie.posterUrl,
+            runtimeMinutes:
+                movie.runtimeMinutes > 0 ? movie.runtimeMinutes : null,
+            watchNumber: index + 1,
+          ),
+        );
+      }
     }
 
-    for (final entry in seriesTracking.watchedEpisodes) {
-      String? imageUrl;
+    final groupedTvEvents = <String, List<TvWatchEntry>>{};
 
-      if (entry.episodeStillPath.isNotEmpty) {
-        imageUrl =
-            'https://image.tmdb.org/t/p/w780${entry.episodeStillPath}';
-      } else if (entry.showPosterPath.isNotEmpty) {
-        imageUrl = 'https://image.tmdb.org/t/p/w500${entry.showPosterPath}';
+    for (final entry in seriesTracking.allWatchEvents) {
+      final key = '${entry.showId}:${entry.episodeId}';
+      groupedTvEvents.putIfAbsent(key, () => <TvWatchEntry>[]).add(entry);
+    }
+
+    for (final events in groupedTvEvents.values) {
+      events.sort((a, b) => a.watchedAt.compareTo(b.watchedAt));
+
+      for (int index = 0; index < events.length; index++) {
+        final entry = events[index];
+        String? imageUrl;
+
+        if (entry.episodeStillPath.isNotEmpty) {
+          imageUrl =
+              'https://image.tmdb.org/t/p/w780${entry.episodeStillPath}';
+        } else if (entry.showPosterPath.isNotEmpty) {
+          imageUrl = 'https://image.tmdb.org/t/p/w500${entry.showPosterPath}';
+        }
+
+        records.add(
+          _DiaryRecord(
+            kind: 'TV Episode',
+            title: entry.showName,
+            subtitle:
+                'S${entry.seasonNumber.toString().padLeft(2, '0')}E${entry.episodeNumber.toString().padLeft(2, '0')} • ${entry.episodeName}',
+            watchedAt: entry.watchedAt,
+            imageUrl: imageUrl,
+            runtimeMinutes: entry.runtimeMinutes,
+            watchNumber: index + 1,
+          ),
+        );
       }
-
-      records.add(
-        _DiaryRecord(
-          kind: 'TV Episode',
-          title: entry.showName,
-          subtitle:
-              'S${entry.seasonNumber.toString().padLeft(2, '0')}E${entry.episodeNumber.toString().padLeft(2, '0')} • ${entry.episodeName}',
-          watchedAt: entry.watchedAt,
-          imageUrl: imageUrl,
-          runtimeMinutes: entry.runtimeMinutes,
-        ),
-      );
     }
 
     records.sort((a, b) => b.watchedAt.compareTo(a.watchedAt));
+
+    final rewatchCount = records.where((record) => record.isRewatch).length;
 
     return Scaffold(
       appBar: AppBar(
@@ -86,7 +105,14 @@ class DiaryScreen extends StatelessWidget {
             )
           : ListView(
               padding: const EdgeInsets.all(20),
-              children: _buildDiaryWidgets(records),
+              children: [
+                _DiarySummaryCard(
+                  totalEntries: records.length,
+                  rewatchCount: rewatchCount,
+                ),
+                const SizedBox(height: 20),
+                ..._buildDiaryWidgets(records),
+              ],
             ),
     );
   }
@@ -147,6 +173,77 @@ class DiaryScreen extends StatelessWidget {
   }
 }
 
+class _DiarySummaryCard extends StatelessWidget {
+  final int totalEntries;
+  final int rewatchCount;
+
+  const _DiarySummaryCard({
+    required this.totalEntries,
+    required this.rewatchCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.grey[900],
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Wrap(
+        spacing: 28,
+        runSpacing: 12,
+        children: [
+          _summaryItem(
+            Icons.menu_book,
+            '$totalEntries',
+            'Diary entries',
+            Colors.redAccent,
+          ),
+          _summaryItem(
+            Icons.replay,
+            '$rewatchCount',
+            'Rewatches',
+            Colors.deepPurpleAccent,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryItem(
+    IconData icon,
+    String value,
+    String label,
+    Color color,
+  ) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: color, size: 26),
+        const SizedBox(width: 10),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              label,
+              style: const TextStyle(color: Colors.grey),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
 class _DiaryTile extends StatelessWidget {
   final _DiaryRecord record;
 
@@ -159,6 +256,11 @@ class _DiaryTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.grey[900],
         borderRadius: BorderRadius.circular(14),
+        border: record.isRewatch
+            ? Border.all(
+                color: Colors.deepPurpleAccent.withValues(alpha: 0.45),
+              )
+            : null,
       ),
       child: Row(
         children: [
@@ -182,23 +284,50 @@ class _DiaryTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    Icon(
-                      record.kind == 'Movie' ? Icons.movie : Icons.tv,
-                      size: 17,
-                      color: record.kind == 'Movie'
-                          ? Colors.redAccent
-                          : Colors.lightBlueAccent,
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          record.kind == 'Movie' ? Icons.movie : Icons.tv,
+                          size: 17,
+                          color: record.kind == 'Movie'
+                              ? Colors.redAccent
+                              : Colors.lightBlueAccent,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          record.kind,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 6),
-                    Text(
-                      record.kind,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey,
+                    if (record.isRewatch)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.deepPurple.withValues(alpha: 0.35),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          'Rewatch #${record.watchNumber}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.deepPurpleAccent,
+                          ),
+                        ),
                       ),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 5),
@@ -255,7 +384,10 @@ class _DiaryTile extends StatelessWidget {
               ],
             ),
           ),
-          const Icon(Icons.check_circle, color: Colors.green),
+          Icon(
+            record.isRewatch ? Icons.replay : Icons.check_circle,
+            color: record.isRewatch ? Colors.deepPurpleAccent : Colors.green,
+          ),
         ],
       ),
     );
@@ -294,6 +426,7 @@ class _DiaryRecord {
   final DateTime watchedAt;
   final String? imageUrl;
   final int? runtimeMinutes;
+  final int watchNumber;
 
   const _DiaryRecord({
     required this.kind,
@@ -302,5 +435,8 @@ class _DiaryRecord {
     required this.watchedAt,
     required this.imageUrl,
     required this.runtimeMinutes,
+    required this.watchNumber,
   });
+
+  bool get isRewatch => watchNumber > 1;
 }
