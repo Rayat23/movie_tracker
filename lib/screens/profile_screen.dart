@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../models/movie.dart';
 import '../services/favorites_service.dart';
+import '../services/series_tracking_service.dart';
 import 'details_screen.dart';
+import 'diary_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -10,6 +12,8 @@ class ProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final FavoritesService favorites = FavoritesService.instance;
+    final SeriesTrackingService seriesTracking =
+        SeriesTrackingService.instance;
 
     final List<Movie> watchedMovies = favorites.watched;
 
@@ -21,23 +25,22 @@ class ProfileScreen extends StatelessWidget {
 
     if (ratedMovies.isNotEmpty) {
       double total = 0;
-
       for (final movie in ratedMovies) {
         total += favorites.getUserRating(movie) ?? 0;
       }
-
       averageRating = total / ratedMovies.length;
     }
 
     final List<Movie> highestRated = List<Movie>.from(ratedMovies);
-
     highestRated.sort((a, b) {
       final double ratingA = favorites.getUserRating(a) ?? 0;
-
       final double ratingB = favorites.getUserRating(b) ?? 0;
-
       return ratingB.compareTo(ratingA);
     });
+
+    final movieMinutes = favorites.totalMovieMinutes;
+    final tvMinutes = seriesTracking.totalTvMinutes;
+    final totalMinutes = movieMinutes + tvMinutes;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -47,55 +50,110 @@ class ProfileScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Your Movie Stats',
-                style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold),
+              Row(
+                children: [
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Your Stats',
+                          style: TextStyle(
+                            fontSize: 30,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'Movies, TV progress, ratings, diary, and total watch time.',
+                          style: TextStyle(
+                            fontSize: 15,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const DiaryScreen(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.menu_book),
+                    label: const Text('View Diary'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ],
               ),
-
-              const SizedBox(height: 8),
-
-              const Text(
-                'A summary of your Movie Tracker activity.',
-                style: TextStyle(fontSize: 15, color: Colors.grey),
-              ),
-
               const SizedBox(height: 28),
-
               Wrap(
                 spacing: 16,
                 runSpacing: 16,
                 children: [
                   _buildStatCard(
-                    icon: Icons.favorite,
-                    title: 'Favorites',
-                    value: '${favorites.favorites.length}',
-                    iconColor: Colors.red,
-                  ),
-
-                  _buildStatCard(
-                    icon: Icons.bookmark,
-                    title: 'Watchlist',
-                    value: '${favorites.watchlist.length}',
-                    iconColor: Colors.blueGrey,
-                  ),
-
-                  _buildStatCard(
-                    icon: Icons.check_circle,
-                    title: 'Watched',
+                    icon: Icons.movie,
+                    title: 'Movies Watched',
                     value: '${favorites.watched.length}',
                     iconColor: Colors.green,
                   ),
-
+                  _buildStatCard(
+                    icon: Icons.tv,
+                    title: 'Series Started',
+                    value: '${seriesTracking.watchedSeriesCount}',
+                    iconColor: Colors.lightBlueAccent,
+                  ),
+                  _buildStatCard(
+                    icon: Icons.play_circle,
+                    title: 'Episodes Watched',
+                    value: '${seriesTracking.totalWatchedEpisodes}',
+                    iconColor: Colors.greenAccent,
+                  ),
+                  _buildStatCard(
+                    icon: Icons.movie_filter,
+                    title: 'Movie Watch Time',
+                    value: _formatMinutes(movieMinutes),
+                    iconColor: Colors.redAccent,
+                  ),
+                  _buildStatCard(
+                    icon: Icons.live_tv,
+                    title: 'TV Watch Time',
+                    value: _formatMinutes(tvMinutes),
+                    iconColor: Colors.cyanAccent,
+                  ),
+                  _buildStatCard(
+                    icon: Icons.timelapse,
+                    title: 'Total Watch Time',
+                    value: _formatMinutes(totalMinutes),
+                    iconColor: Colors.purpleAccent,
+                  ),
+                  _buildStatCard(
+                    icon: Icons.favorite,
+                    title: 'Movie Favorites',
+                    value: '${favorites.favorites.length}',
+                    iconColor: Colors.red,
+                  ),
+                  _buildStatCard(
+                    icon: Icons.bookmark,
+                    title: 'Movie Watchlist',
+                    value: '${favorites.watchlist.length}',
+                    iconColor: Colors.blueGrey,
+                  ),
                   _buildStatCard(
                     icon: Icons.star,
-                    title: 'Rated',
+                    title: 'Movies Rated',
                     value: '${ratedMovies.length}',
                     iconColor: Colors.amber,
                   ),
-
                   _buildStatCard(
                     icon: Icons.bar_chart,
-                    title: 'Average Rating',
+                    title: 'Average Movie Rating',
                     value: ratedMovies.isEmpty
                         ? '—'
                         : '${averageRating.toStringAsFixed(1)}/10',
@@ -103,16 +161,36 @@ class ProfileScreen extends StatelessWidget {
                   ),
                 ],
               ),
-
-              const SizedBox(height: 40),
-
-              const Text(
-                'Your Highest Rated',
-                style: TextStyle(fontSize: 23, fontWeight: FontWeight.bold),
-              ),
-
               const SizedBox(height: 16),
-
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.grey[900],
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.grey),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Movie runtime is fetched from TMDB when you open a movie details page. Older watched movies may show 0 watch time until you open their details once.',
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 40),
+              const Text(
+                'Your Highest Rated Movies',
+                style: TextStyle(
+                  fontSize: 23,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
               if (highestRated.isEmpty)
                 _buildEmptyRatings()
               else
@@ -131,7 +209,7 @@ class ProfileScreen extends StatelessWidget {
     required Color iconColor,
   }) {
     return Container(
-      width: 200,
+      width: 205,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.grey[900],
@@ -141,20 +219,41 @@ class ProfileScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(icon, color: iconColor, size: 28),
-
           const SizedBox(height: 14),
-
           Text(
             value,
-            style: const TextStyle(fontSize: 27, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              fontSize: 27,
+              fontWeight: FontWeight.bold,
+            ),
           ),
-
           const SizedBox(height: 4),
-
-          Text(title, style: const TextStyle(fontSize: 14, color: Colors.grey)),
+          Text(
+            title,
+            style: const TextStyle(fontSize: 14, color: Colors.grey),
+          ),
         ],
       ),
     );
+  }
+
+  String _formatMinutes(int minutes) {
+    if (minutes <= 0) return '0m';
+
+    final days = minutes ~/ (24 * 60);
+    final remainingAfterDays = minutes % (24 * 60);
+    final hours = remainingAfterDays ~/ 60;
+    final remainingMinutes = remainingAfterDays % 60;
+
+    if (days > 0) {
+      if (hours == 0 && remainingMinutes == 0) return '${days}d';
+      if (remainingMinutes == 0) return '${days}d ${hours}h';
+      return '${days}d ${hours}h ${remainingMinutes}m';
+    }
+
+    if (hours == 0) return '${remainingMinutes}m';
+    if (remainingMinutes == 0) return '${hours}h';
+    return '${hours}h ${remainingMinutes}m';
   }
 
   Widget _buildEmptyRatings() {
@@ -168,9 +267,7 @@ class ProfileScreen extends StatelessWidget {
       child: const Column(
         children: [
           Icon(Icons.star_border, size: 55, color: Colors.grey),
-
           SizedBox(height: 12),
-
           Text(
             'No rated movies yet',
             style: TextStyle(
@@ -179,9 +276,7 @@ class ProfileScreen extends StatelessWidget {
               color: Colors.grey,
             ),
           ),
-
           SizedBox(height: 6),
-
           Text(
             'Rate movies you have watched and they will appear here.',
             textAlign: TextAlign.center,
@@ -203,18 +298,15 @@ class ProfileScreen extends StatelessWidget {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: numberToShow,
-      separatorBuilder: (context, index) {
-        return const SizedBox(height: 10);
-      },
+      separatorBuilder: (context, index) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
         final Movie movie = movies[index];
-
         final double rating = favorites.getUserRating(movie) ?? 0;
 
         return InkWell(
           borderRadius: BorderRadius.circular(14),
-          onTap: () {
-            Navigator.push(
+          onTap: () async {
+            await Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (context) => DetailsScreen(movie: movie),
@@ -237,9 +329,7 @@ class ProfileScreen extends StatelessWidget {
                     color: Colors.grey,
                   ),
                 ),
-
                 const SizedBox(width: 16),
-
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: movie.posterPath.isNotEmpty
@@ -254,9 +344,7 @@ class ProfileScreen extends StatelessWidget {
                         )
                       : _posterPlaceholder(),
                 ),
-
                 const SizedBox(width: 16),
-
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -270,12 +358,14 @@ class ProfileScreen extends StatelessWidget {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-
                       const SizedBox(height: 6),
-
                       Row(
                         children: [
-                          const Icon(Icons.star, color: Colors.amber, size: 19),
+                          const Icon(
+                            Icons.star,
+                            color: Colors.amber,
+                            size: 19,
+                          ),
                           const SizedBox(width: 5),
                           Text(
                             '${rating.toStringAsFixed(0)}/10',
@@ -289,7 +379,6 @@ class ProfileScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-
                 const Icon(Icons.chevron_right, color: Colors.grey),
               ],
             ),

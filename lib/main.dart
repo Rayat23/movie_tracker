@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 
 import 'screens/home_screen.dart';
 import 'services/favorites_service.dart';
+import 'services/series_tracking_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Load Favorites, Watchlist, and Watched movies.
-  await FavoritesService.instance.loadAll();
+  await Future.wait([
+    FavoritesService.instance.loadAll(),
+    SeriesTrackingService.instance.loadAll(),
+  ]);
 
   runApp(const MovieTrackerApp());
 }

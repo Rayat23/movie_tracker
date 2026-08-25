@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/movie.dart';
 import '../services/favorites_service.dart';
+import '../services/movie_service.dart';
 
 class DetailsScreen extends StatefulWidget {
   final Movie movie;
@@ -14,17 +15,40 @@ class DetailsScreen extends StatefulWidget {
 
 class _DetailsScreenState extends State<DetailsScreen> {
   final FavoritesService favorites = FavoritesService.instance;
+  final MovieService movieService = MovieService();
+
+  late Movie currentMovie;
+
+  @override
+  void initState() {
+    super.initState();
+    currentMovie = widget.movie;
+    _loadMovieDetails();
+  }
+
+  Future<void> _loadMovieDetails() async {
+    try {
+      final detailedMovie = await movieService.fetchMovieDetails(widget.movie.id);
+      await favorites.syncMovieMetadata(detailedMovie);
+
+      if (!mounted) return;
+
+      setState(() {
+        currentMovie = detailedMovie;
+      });
+    } catch (_) {
+      // Keep using the list/search result if detailed metadata is unavailable.
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final Movie movie = widget.movie;
+    final Movie movie = currentMovie;
 
     final bool isFav = favorites.isFavorite(movie);
     final bool isWatchlist = favorites.isInWatchlist(movie);
     final bool isWatched = favorites.isWatched(movie);
-
     final double? userRating = favorites.getUserRating(movie);
-
     final DateTime? watchedDate = favorites.getWatchedDate(movie);
 
     return Scaffold(
@@ -39,11 +63,8 @@ class _DetailsScreenState extends State<DetailsScreen> {
             ),
             onPressed: () async {
               await favorites.toggle(movie);
-
               if (!mounted) return;
-
               setState(() {});
-
               _showMessage(
                 favorites.isFavorite(movie)
                     ? 'Added to Favorites'
@@ -87,10 +108,6 @@ class _DetailsScreenState extends State<DetailsScreen> {
     );
   }
 
-  // --------------------------------------------------
-  // DESKTOP
-  // --------------------------------------------------
-
   Widget _buildDesktopLayout(
     Movie movie,
     bool isFav,
@@ -103,9 +120,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(width: 280, child: _buildPoster(movie)),
-
         const SizedBox(width: 32),
-
         Expanded(
           child: _buildMovieInformation(
             movie,
@@ -120,10 +135,6 @@ class _DetailsScreenState extends State<DetailsScreen> {
     );
   }
 
-  // --------------------------------------------------
-  // MOBILE
-  // --------------------------------------------------
-
   Widget _buildMobileLayout(
     Movie movie,
     bool isFav,
@@ -136,9 +147,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Center(child: SizedBox(width: 240, child: _buildPoster(movie))),
-
         const SizedBox(height: 24),
-
         _buildMovieInformation(
           movie,
           isFav,
@@ -150,10 +159,6 @@ class _DetailsScreenState extends State<DetailsScreen> {
       ],
     );
   }
-
-  // --------------------------------------------------
-  // POSTER
-  // --------------------------------------------------
 
   Widget _buildPoster(Movie movie) {
     return ClipRRect(
@@ -182,10 +187,6 @@ class _DetailsScreenState extends State<DetailsScreen> {
     );
   }
 
-  // --------------------------------------------------
-  // MOVIE INFO
-  // --------------------------------------------------
-
   Widget _buildMovieInformation(
     Movie movie,
     bool isFav,
@@ -201,10 +202,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
           movie.title,
           style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
         ),
-
         const SizedBox(height: 12),
-
-        // TMDB rating + release date
         Wrap(
           spacing: 20,
           runSpacing: 10,
@@ -220,7 +218,6 @@ class _DetailsScreenState extends State<DetailsScreen> {
                 ),
               ],
             ),
-
             if (movie.releaseDate.isNotEmpty)
               Row(
                 mainAxisSize: MainAxisSize.min,
@@ -237,15 +234,22 @@ class _DetailsScreenState extends State<DetailsScreen> {
                   ),
                 ],
               ),
+            if (movie.runtimeMinutes > 0)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.schedule, size: 20, color: Colors.grey),
+                  const SizedBox(width: 6),
+                  Text(
+                    _formatRuntime(movie.runtimeMinutes),
+                    style: const TextStyle(fontSize: 16, color: Colors.grey),
+                  ),
+                ],
+              ),
           ],
         ),
-
-        // --------------------------------------------------
-        // WATCHED DATE
-        // --------------------------------------------------
         if (isWatched && watchedDate != null) ...[
           const SizedBox(height: 20),
-
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
@@ -257,9 +261,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Icon(Icons.check_circle, color: Colors.green, size: 20),
-
                 const SizedBox(width: 8),
-
                 Text(
                   'Watched ${_formatDate(watchedDate)}',
                   style: const TextStyle(
@@ -271,12 +273,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
             ),
           ),
         ],
-
         const SizedBox(height: 28),
-
-        // --------------------------------------------------
-        // USER RATING
-        // --------------------------------------------------
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -293,7 +290,6 @@ class _DetailsScreenState extends State<DetailsScreen> {
                 color: Colors.amber,
                 size: 26,
               ),
-
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -301,9 +297,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
                     'Your Rating',
                     style: TextStyle(fontSize: 13, color: Colors.grey),
                   ),
-
                   const SizedBox(height: 2),
-
                   Text(
                     userRating != null
                         ? '${userRating.toStringAsFixed(0)}/10'
@@ -315,7 +309,6 @@ class _DetailsScreenState extends State<DetailsScreen> {
                   ),
                 ],
               ),
-
               OutlinedButton(
                 onPressed: () {
                   _showRatingDialog(movie, userRating);
@@ -324,17 +317,13 @@ class _DetailsScreenState extends State<DetailsScreen> {
                   userRating == null ? 'Rate Movie' : 'Change Rating',
                 ),
               ),
-
               if (userRating != null)
                 IconButton(
                   tooltip: 'Remove Rating',
                   onPressed: () async {
                     await favorites.removeUserRating(movie);
-
                     if (!mounted) return;
-
                     setState(() {});
-
                     _showMessage('Rating removed');
                   },
                   icon: const Icon(Icons.close, color: Colors.grey),
@@ -342,12 +331,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
             ],
           ),
         ),
-
         const SizedBox(height: 28),
-
-        // --------------------------------------------------
-        // FAVORITE / WATCHLIST / WATCHED
-        // --------------------------------------------------
         Wrap(
           spacing: 12,
           runSpacing: 12,
@@ -355,11 +339,8 @@ class _DetailsScreenState extends State<DetailsScreen> {
             ElevatedButton.icon(
               onPressed: () async {
                 await favorites.toggle(movie);
-
                 if (!mounted) return;
-
                 setState(() {});
-
                 _showMessage(
                   favorites.isFavorite(movie)
                       ? 'Added to Favorites'
@@ -377,15 +358,11 @@ class _DetailsScreenState extends State<DetailsScreen> {
                 ),
               ),
             ),
-
             ElevatedButton.icon(
               onPressed: () async {
                 await favorites.toggleWatchlist(movie);
-
                 if (!mounted) return;
-
                 setState(() {});
-
                 _showMessage(
                   favorites.isInWatchlist(movie)
                       ? 'Added to Watchlist'
@@ -395,9 +372,8 @@ class _DetailsScreenState extends State<DetailsScreen> {
               icon: Icon(isWatchlist ? Icons.bookmark : Icons.bookmark_border),
               label: Text(isWatchlist ? 'In Watchlist' : 'Watchlist'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: isWatchlist
-                    ? Colors.blueGrey
-                    : Colors.grey[850],
+                backgroundColor:
+                    isWatchlist ? Colors.blueGrey : Colors.grey[850],
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 18,
@@ -405,15 +381,11 @@ class _DetailsScreenState extends State<DetailsScreen> {
                 ),
               ),
             ),
-
             ElevatedButton.icon(
               onPressed: () async {
                 await favorites.toggleWatched(movie);
-
                 if (!mounted) return;
-
                 setState(() {});
-
                 _showMessage(
                   favorites.isWatched(movie)
                       ? 'Marked as Watched'
@@ -435,19 +407,12 @@ class _DetailsScreenState extends State<DetailsScreen> {
             ),
           ],
         ),
-
         const SizedBox(height: 32),
-
-        // --------------------------------------------------
-        // OVERVIEW
-        // --------------------------------------------------
         const Text(
           'Overview',
           style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
         ),
-
         const SizedBox(height: 12),
-
         Text(
           movie.overview.isNotEmpty
               ? movie.overview
@@ -462,9 +427,14 @@ class _DetailsScreenState extends State<DetailsScreen> {
     );
   }
 
-  // --------------------------------------------------
-  // DATE FORMAT
-  // --------------------------------------------------
+  String _formatRuntime(int minutes) {
+    final hours = minutes ~/ 60;
+    final remainingMinutes = minutes % 60;
+
+    if (hours == 0) return '$remainingMinutes min';
+    if (remainingMinutes == 0) return '${hours}h';
+    return '${hours}h ${remainingMinutes}m';
+  }
 
   String _formatDate(DateTime date) {
     const months = [
@@ -485,10 +455,6 @@ class _DetailsScreenState extends State<DetailsScreen> {
     return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 
-  // --------------------------------------------------
-  // RATING DIALOG
-  // --------------------------------------------------
-
   Future<void> _showRatingDialog(Movie movie, double? currentRating) async {
     int selectedRating = currentRating?.toInt() ?? 0;
 
@@ -505,16 +471,13 @@ class _DetailsScreenState extends State<DetailsScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Text('Choose a rating from 1 to 10'),
-
                     const SizedBox(height: 20),
-
                     Wrap(
                       spacing: 10,
                       runSpacing: 10,
                       alignment: WrapAlignment.center,
                       children: List.generate(10, (index) {
                         final int value = index + 1;
-
                         return ChoiceChip(
                           label: Text('$value'),
                           selected: selectedRating == value,
@@ -526,17 +489,13 @@ class _DetailsScreenState extends State<DetailsScreen> {
                         );
                       }),
                     ),
-
                     const SizedBox(height: 20),
-
                     if (selectedRating > 0)
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           const Icon(Icons.star, color: Colors.amber, size: 30),
-
                           const SizedBox(width: 8),
-
                           Text(
                             '$selectedRating/10',
                             style: const TextStyle(
@@ -556,7 +515,6 @@ class _DetailsScreenState extends State<DetailsScreen> {
                   },
                   child: const Text('Cancel'),
                 ),
-
                 ElevatedButton(
                   onPressed: selectedRating == 0
                       ? null
@@ -575,17 +533,10 @@ class _DetailsScreenState extends State<DetailsScreen> {
     if (rating == null) return;
 
     await favorites.setUserRating(movie, rating.toDouble());
-
     if (!mounted) return;
-
     setState(() {});
-
     _showMessage('You rated ${movie.title} $rating/10');
   }
-
-  // --------------------------------------------------
-  // SNACKBAR
-  // --------------------------------------------------
 
   void _showMessage(String message) {
     ScaffoldMessenger.of(context)

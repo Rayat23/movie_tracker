@@ -6,7 +6,6 @@ import '../config/api_config.dart';
 import '../models/movie.dart';
 
 class MovieService {
-  // Shared method for fetching movie lists from TMDB.
   Future<List<Movie>> _fetchMovies(String endpoint) async {
     final url = Uri.parse(
       '${ApiConfig.baseUrl}$endpoint'
@@ -18,12 +17,28 @@ class MovieService {
 
     if (response.statusCode == 200) {
       final Map<String, dynamic> data = jsonDecode(response.body);
-
       final List<dynamic> results = data['results'] ?? [];
 
       return results
           .map((movieJson) => Movie.fromJson(movieJson as Map<String, dynamic>))
           .toList();
+    }
+
+    throw Exception('TMDB error ${response.statusCode}: ${response.body}');
+  }
+
+  Future<Movie> fetchMovieDetails(int movieId) async {
+    final url = Uri.parse(
+      '${ApiConfig.baseUrl}/movie/$movieId'
+      '?api_key=${ApiConfig.apiKey}'
+      '&language=en-US',
+    );
+
+    final response = await http.get(url);
+
+    if (response.statusCode == 200) {
+      final Map<String, dynamic> data = jsonDecode(response.body);
+      return Movie.fromJson(data);
     }
 
     throw Exception('TMDB error ${response.statusCode}: ${response.body}');
@@ -53,7 +68,6 @@ class MovieService {
 
     if (response.statusCode == 200) {
       final Map<String, dynamic> data = jsonDecode(response.body);
-
       final List<dynamic> results = data['results'] ?? [];
 
       return results
