@@ -25,21 +25,22 @@ class ProfileScreen extends StatelessWidget {
 
     if (ratedMovies.isNotEmpty) {
       double total = 0;
-
       for (final movie in ratedMovies) {
         total += favorites.getUserRating(movie) ?? 0;
       }
-
       averageRating = total / ratedMovies.length;
     }
 
     final List<Movie> highestRated = List<Movie>.from(ratedMovies);
-
     highestRated.sort((a, b) {
       final double ratingA = favorites.getUserRating(a) ?? 0;
       final double ratingB = favorites.getUserRating(b) ?? 0;
       return ratingB.compareTo(ratingA);
     });
+
+    final movieMinutes = favorites.totalMovieMinutes;
+    final tvMinutes = seriesTracking.totalTvMinutes;
+    final totalMinutes = movieMinutes + tvMinutes;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -64,7 +65,7 @@ class ProfileScreen extends StatelessWidget {
                         ),
                         SizedBox(height: 8),
                         Text(
-                          'Movies, TV progress, ratings, and watch history.',
+                          'Movies, TV progress, ratings, diary, and total watch time.',
                           style: TextStyle(
                             fontSize: 15,
                             color: Colors.grey,
@@ -115,10 +116,22 @@ class ProfileScreen extends StatelessWidget {
                     iconColor: Colors.greenAccent,
                   ),
                   _buildStatCard(
-                    icon: Icons.schedule,
+                    icon: Icons.movie_filter,
+                    title: 'Movie Watch Time',
+                    value: _formatMinutes(movieMinutes),
+                    iconColor: Colors.redAccent,
+                  ),
+                  _buildStatCard(
+                    icon: Icons.live_tv,
                     title: 'TV Watch Time',
-                    value: _formatMinutes(seriesTracking.totalTvMinutes),
+                    value: _formatMinutes(tvMinutes),
                     iconColor: Colors.cyanAccent,
+                  ),
+                  _buildStatCard(
+                    icon: Icons.timelapse,
+                    title: 'Total Watch Time',
+                    value: _formatMinutes(totalMinutes),
+                    iconColor: Colors.purpleAccent,
                   ),
                   _buildStatCard(
                     icon: Icons.favorite,
@@ -162,7 +175,7 @@ class ProfileScreen extends StatelessWidget {
                     SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Movie watch-time totals will be added when movie runtime data is connected. TV watch time already uses each watched episode runtime.',
+                        'Movie runtime is fetched from TMDB when you open a movie details page. Older watched movies may show 0 watch time until you open their details once.',
                         style: TextStyle(color: Colors.white70),
                       ),
                     ),
@@ -227,12 +240,19 @@ class ProfileScreen extends StatelessWidget {
   String _formatMinutes(int minutes) {
     if (minutes <= 0) return '0m';
 
-    final hours = minutes ~/ 60;
-    final remainingMinutes = minutes % 60;
+    final days = minutes ~/ (24 * 60);
+    final remainingAfterDays = minutes % (24 * 60);
+    final hours = remainingAfterDays ~/ 60;
+    final remainingMinutes = remainingAfterDays % 60;
+
+    if (days > 0) {
+      if (hours == 0 && remainingMinutes == 0) return '${days}d';
+      if (remainingMinutes == 0) return '${days}d ${hours}h';
+      return '${days}d ${hours}h ${remainingMinutes}m';
+    }
 
     if (hours == 0) return '${remainingMinutes}m';
     if (remainingMinutes == 0) return '${hours}h';
-
     return '${hours}h ${remainingMinutes}m';
   }
 
