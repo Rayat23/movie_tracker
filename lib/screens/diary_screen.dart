@@ -15,7 +15,6 @@ class DiaryScreen extends StatelessWidget {
 
     for (final movie in favorites.watched) {
       final watchedAt = favorites.getWatchedDate(movie);
-
       if (watchedAt == null) continue;
 
       records.add(
@@ -27,7 +26,7 @@ class DiaryScreen extends StatelessWidget {
               : 'Movie • Your rating ${favorites.getUserRating(movie)!.toStringAsFixed(0)}/10',
           watchedAt: watchedAt,
           imageUrl: movie.posterPath.isEmpty ? null : movie.posterUrl,
-          runtimeMinutes: null,
+          runtimeMinutes: movie.runtimeMinutes > 0 ? movie.runtimeMinutes : null,
         ),
       );
     }
@@ -245,7 +244,7 @@ class _DiaryTile extends StatelessWidget {
                     if (record.runtimeMinutes != null &&
                         record.runtimeMinutes! > 0)
                       Text(
-                        '${record.runtimeMinutes} min',
+                        _formatRuntime(record.runtimeMinutes!),
                         style: const TextStyle(
                           fontSize: 12,
                           color: Colors.grey,
@@ -267,6 +266,15 @@ class _DiaryTile extends StatelessWidget {
     final minute = date.minute.toString().padLeft(2, '0');
     final period = date.hour >= 12 ? 'PM' : 'AM';
     return '$hour:$minute $period';
+  }
+
+  String _formatRuntime(int minutes) {
+    final hours = minutes ~/ 60;
+    final remainingMinutes = minutes % 60;
+
+    if (hours == 0) return '$remainingMinutes min';
+    if (remainingMinutes == 0) return '${hours}h';
+    return '${hours}h ${remainingMinutes}m';
   }
 
   Widget _placeholder() {
