@@ -30,443 +30,675 @@ class _DetailsScreenState extends State<DetailsScreen> {
     try {
       final detailedMovie = await movieService.fetchMovieDetails(widget.movie.id);
       await favorites.syncMovieMetadata(detailedMovie);
-
       if (!mounted) return;
-
-      setState(() {
-        currentMovie = detailedMovie;
-      });
+      setState(() => currentMovie = detailedMovie);
     } catch (_) {
-      // Keep using the list/search result if detailed metadata is unavailable.
+      // Keep the list/search result if detailed metadata is unavailable.
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final Movie movie = currentMovie;
-
-    final bool isFav = favorites.isFavorite(movie);
-    final bool isWatchlist = favorites.isInWatchlist(movie);
-    final bool isWatched = favorites.isWatched(movie);
-    final double? userRating = favorites.getUserRating(movie);
-    final DateTime? latestWatchDate = favorites.getLatestMovieWatchDate(movie);
-    final int watchCount = favorites.getMovieWatchCount(movie);
+    final movie = currentMovie;
+    final isFav = favorites.isFavorite(movie);
+    final isWatchlist = favorites.isInWatchlist(movie);
+    final isWatched = favorites.isWatched(movie);
+    final userRating = favorites.getUserRating(movie);
+    final latestWatchDate = favorites.getLatestMovieWatchDate(movie);
+    final watchCount = favorites.getMovieWatchCount(movie);
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: Text(movie.title),
+        backgroundColor: Colors.black.withValues(alpha: 0.28),
+        elevation: 0,
+        title: const Text('Movie Details'),
         actions: [
           IconButton(
             tooltip: isFav ? 'Remove from Favorites' : 'Add to Favorites',
+            onPressed: () => _toggleFavorite(movie),
             icon: Icon(
-              isFav ? Icons.favorite : Icons.favorite_border,
-              color: isFav ? Colors.red : Colors.white,
+              isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+              color: isFav ? Colors.redAccent : Colors.white,
             ),
-            onPressed: () async {
-              await favorites.toggle(movie);
-              if (!mounted) return;
-              setState(() {});
-              _showMessage(
-                favorites.isFavorite(movie)
-                    ? 'Added to Favorites'
-                    : 'Removed from Favorites',
-              );
-            },
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            _cinematicHero(
+              movie,
+              isFav: isFav,
+              isWatchlist: isWatchlist,
+              isWatched: isWatched,
+            ),
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1180),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 24, 22, 46),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _trackingSection(
+                        movie,
+                        isWatched: isWatched,
+                        latestWatchDate: latestWatchDate,
+                        watchCount: watchCount,
+                      ),
+                      const SizedBox(height: 18),
+                      _ratingCard(movie, userRating),
+                      const SizedBox(height: 30),
+                      _sectionHeading(
+                        'Overview',
+                        'About this movie',
+                        Icons.subject_rounded,
+                      ),
+                      const SizedBox(height: 12),
+                      _overviewCard(movie.overview),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _cinematicHero(
+    Movie movie, {
+    required bool isFav,
+    required bool isWatchlist,
+    required bool isWatched,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final desktop = constraints.maxWidth >= 820;
+
+        return Container(
+          width: double.infinity,
+          constraints: BoxConstraints(minHeight: desktop ? 520 : 760),
+          decoration: const BoxDecoration(color: Color(0xFF0B0D12)),
+          child: Stack(
+            fit: StackFit.passthrough,
+            children: [
+              Positioned.fill(child: _backdrop(movie)),
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withValues(alpha: 0.35),
+                        Colors.black.withValues(alpha: 0.18),
+                        const Color(0xFF0B0D12).withValues(alpha: 0.92),
+                        const Color(0xFF0B0D12),
+                      ],
+                      stops: const [0, 0.35, 0.82, 1],
+                    ),
+                  ),
+                ),
+              ),
+              SafeArea(
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1180),
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        22,
+                        desktop ? 78 : 86,
+                        22,
+                        30,
+                      ),
+                      child: desktop
+                          ? Row(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                SizedBox(width: 250, child: _poster(movie)),
+                                const SizedBox(width: 30),
+                                Expanded(
+                                  child: _heroInfo(
+                                    movie,
+                                    isFav: isFav,
+                                    isWatchlist: isWatchlist,
+                                    isWatched: isWatched,
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Column(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Center(
+                                  child: SizedBox(
+                                    width: 205,
+                                    child: _poster(movie),
+                                  ),
+                                ),
+                                const SizedBox(height: 24),
+                                _heroInfo(
+                                  movie,
+                                  isFav: isFav,
+                                  isWatchlist: isWatchlist,
+                                  isWatched: isWatched,
+                                ),
+                              ],
+                            ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _backdrop(Movie movie) {
+    if (movie.backdropPath.isEmpty) {
+      return Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF35181B), Color(0xFF151824), Color(0xFF0B0D12)],
+          ),
+        ),
+      );
+    }
+
+    return Image.network(
+      movie.backdropUrl,
+      fit: BoxFit.cover,
+      alignment: Alignment.topCenter,
+      errorBuilder: (context, error, stackTrace) {
+        return Container(color: const Color(0xFF11131A));
+      },
+    );
+  }
+
+  Widget _poster(Movie movie) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.55),
+            blurRadius: 30,
+            offset: const Offset(0, 16),
           ),
         ],
       ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final bool isDesktop = constraints.maxWidth >= 800;
-
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 1100),
-                child: isDesktop
-                    ? _buildDesktopLayout(
-                        movie,
-                        isFav,
-                        isWatchlist,
-                        isWatched,
-                        userRating,
-                        latestWatchDate,
-                        watchCount,
-                      )
-                    : _buildMobileLayout(
-                        movie,
-                        isFav,
-                        isWatchlist,
-                        isWatched,
-                        userRating,
-                        latestWatchDate,
-                        watchCount,
-                      ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildDesktopLayout(
-    Movie movie,
-    bool isFav,
-    bool isWatchlist,
-    bool isWatched,
-    double? userRating,
-    DateTime? latestWatchDate,
-    int watchCount,
-  ) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(width: 280, child: _buildPoster(movie)),
-        const SizedBox(width: 32),
-        Expanded(
-          child: _buildMovieInformation(
-            movie,
-            isFav,
-            isWatchlist,
-            isWatched,
-            userRating,
-            latestWatchDate,
-            watchCount,
-          ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: AspectRatio(
+          aspectRatio: 2 / 3,
+          child: movie.posterPath.isNotEmpty
+              ? Image.network(
+                  movie.posterUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) =>
+                      _posterPlaceholder(),
+                )
+              : _posterPlaceholder(),
         ),
-      ],
-    );
-  }
-
-  Widget _buildMobileLayout(
-    Movie movie,
-    bool isFav,
-    bool isWatchlist,
-    bool isWatched,
-    double? userRating,
-    DateTime? latestWatchDate,
-    int watchCount,
-  ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Center(child: SizedBox(width: 240, child: _buildPoster(movie))),
-        const SizedBox(height: 24),
-        _buildMovieInformation(
-          movie,
-          isFav,
-          isWatchlist,
-          isWatched,
-          userRating,
-          latestWatchDate,
-          watchCount,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPoster(Movie movie) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: AspectRatio(
-        aspectRatio: 2 / 3,
-        child: movie.posterPath.isNotEmpty
-            ? Image.network(
-                movie.posterUrl,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return _posterPlaceholder();
-                },
-              )
-            : _posterPlaceholder(),
       ),
     );
   }
 
   Widget _posterPlaceholder() {
     return Container(
-      color: Colors.grey[900],
+      color: const Color(0xFF151821),
       child: const Center(
-        child: Icon(Icons.movie, size: 80, color: Colors.grey),
+        child: Icon(Icons.movie_rounded, size: 70, color: Colors.white24),
       ),
     );
   }
 
-  Widget _buildMovieInformation(
-    Movie movie,
-    bool isFav,
-    bool isWatchlist,
-    bool isWatched,
-    double? userRating,
-    DateTime? latestWatchDate,
-    int watchCount,
-  ) {
+  Widget _heroInfo(
+    Movie movie, {
+    required bool isFav,
+    required bool isWatchlist,
+    required bool isWatched,
+  }) {
+    final year = movie.releaseDate.length >= 4
+        ? movie.releaseDate.substring(0, 4)
+        : movie.releaseDate;
+
     return Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.09),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white12),
+          ),
+          child: const Text(
+            'MOVIE',
+            style: TextStyle(
+              fontSize: 11,
+              letterSpacing: 1.4,
+              fontWeight: FontWeight.w800,
+              color: Colors.white70,
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
         Text(
           movie.title,
-          style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+          style: const TextStyle(
+            fontSize: 38,
+            height: 1.05,
+            fontWeight: FontWeight.w900,
+            letterSpacing: -0.7,
+          ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
         Wrap(
-          spacing: 20,
-          runSpacing: 10,
+          spacing: 9,
+          runSpacing: 9,
           children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.star, color: Colors.amber, size: 22),
-                const SizedBox(width: 6),
-                Text(
-                  'TMDB ${movie.rating.toStringAsFixed(1)}',
-                  style: const TextStyle(fontSize: 17),
-                ),
-              ],
+            _metaChip(
+              Icons.star_rounded,
+              movie.rating.toStringAsFixed(1),
+              Colors.amber,
             ),
-            if (movie.releaseDate.isNotEmpty)
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.calendar_month,
-                    size: 20,
-                    color: Colors.grey,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    movie.releaseDate,
-                    style: const TextStyle(fontSize: 16, color: Colors.grey),
-                  ),
-                ],
-              ),
+            if (year.isNotEmpty)
+              _metaChip(Icons.calendar_month_rounded, year, Colors.white70),
             if (movie.runtimeMinutes > 0)
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.schedule, size: 20, color: Colors.grey),
-                  const SizedBox(width: 6),
-                  Text(
-                    _formatRuntime(movie.runtimeMinutes),
-                    style: const TextStyle(fontSize: 16, color: Colors.grey),
-                  ),
-                ],
+              _metaChip(
+                Icons.schedule_rounded,
+                _formatRuntime(movie.runtimeMinutes),
+                Colors.white70,
               ),
           ],
         ),
-        if (isWatched && latestWatchDate != null) ...[
-          const SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: Colors.green.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.green.withValues(alpha: 0.35)),
+        const SizedBox(height: 22),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            _actionButton(
+              icon: isWatched
+                  ? Icons.check_circle_rounded
+                  : Icons.check_circle_outline_rounded,
+              label: isWatched ? 'Watched' : 'Mark Watched',
+              selected: isWatched,
+              selectedColor: Colors.green,
+              onPressed: () => _toggleWatched(movie),
             ),
-            child: Wrap(
-              spacing: 10,
-              runSpacing: 6,
-              crossAxisAlignment: WrapCrossAlignment.center,
+            _actionButton(
+              icon: isWatchlist
+                  ? Icons.bookmark_rounded
+                  : Icons.bookmark_border_rounded,
+              label: isWatchlist ? 'In Watchlist' : 'Watchlist',
+              selected: isWatchlist,
+              selectedColor: Colors.blueGrey,
+              onPressed: () => _toggleWatchlist(movie),
+            ),
+            _actionButton(
+              icon: isFav
+                  ? Icons.favorite_rounded
+                  : Icons.favorite_border_rounded,
+              label: 'Favorite',
+              selected: isFav,
+              selectedColor: Colors.red,
+              onPressed: () => _toggleFavorite(movie),
+            ),
+            if (isWatched)
+              _actionButton(
+                icon: Icons.replay_rounded,
+                label: 'Log Rewatch',
+                selected: true,
+                selectedColor: Colors.deepPurple,
+                onPressed: () => _logRewatch(movie),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _metaChip(IconData icon, String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.34),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 17, color: color),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _actionButton({
+    required IconData icon,
+    required String label,
+    required bool selected,
+    required Color selectedColor,
+    required VoidCallback onPressed,
+  }) {
+    return ElevatedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 19),
+      label: Text(label),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: selected
+            ? selectedColor
+            : Colors.white.withValues(alpha: 0.09),
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        side: BorderSide(
+          color: selected
+              ? selectedColor.withValues(alpha: 0.8)
+              : Colors.white12,
+        ),
+      ),
+    );
+  }
+
+  Widget _trackingSection(
+    Movie movie, {
+    required bool isWatched,
+    required DateTime? latestWatchDate,
+    required int watchCount,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 680;
+
+        final status = _detailPanel(
+          icon: isWatched ? Icons.check_circle_rounded : Icons.history_rounded,
+          iconColor: isWatched ? Colors.greenAccent : Colors.white54,
+          title: 'Watch status',
+          value: isWatched
+              ? (watchCount > 1 ? 'Watched $watchCount times' : 'Watched')
+              : 'Not watched yet',
+          detail: isWatched && latestWatchDate != null
+              ? 'Latest ${_formatDate(latestWatchDate)}'
+              : 'Mark it watched to start your diary history.',
+        );
+
+        final runtime = _detailPanel(
+          icon: Icons.timer_outlined,
+          iconColor: Colors.cyanAccent,
+          title: 'Runtime',
+          value: movie.runtimeMinutes > 0
+              ? _formatRuntime(movie.runtimeMinutes)
+              : 'Unknown',
+          detail: movie.runtimeMinutes > 0
+              ? 'Included in your watch-time statistics.'
+              : 'Runtime will appear when TMDB provides it.',
+        );
+
+        if (compact) {
+          return Column(
+            children: [
+              status,
+              const SizedBox(height: 12),
+              runtime,
+            ],
+          );
+        }
+
+        return Row(
+          children: [
+            Expanded(child: status),
+            const SizedBox(width: 12),
+            Expanded(child: runtime),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _detailPanel({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String value,
+    required String detail,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(17),
+      decoration: BoxDecoration(
+        color: const Color(0xFF11131A),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Icon(icon, color: iconColor),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.check_circle, color: Colors.green, size: 20),
                 Text(
-                  watchCount > 1
-                      ? 'Watched $watchCount times'
-                      : 'Watched',
+                  title,
+                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  value,
                   style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
+                const SizedBox(height: 3),
                 Text(
-                  'Latest ${_formatDate(latestWatchDate)}',
-                  style: const TextStyle(color: Colors.white70),
+                  detail,
+                  style: const TextStyle(
+                    color: Colors.white38,
+                    fontSize: 11,
+                    height: 1.3,
+                  ),
                 ),
               ],
             ),
           ),
         ],
-        const SizedBox(height: 28),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.grey[900],
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Wrap(
-            spacing: 14,
-            runSpacing: 10,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              Icon(
-                userRating != null ? Icons.star : Icons.star_border,
-                color: Colors.amber,
-                size: 26,
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Your Rating',
-                    style: TextStyle(fontSize: 13, color: Colors.grey),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    userRating != null
-                        ? '${userRating.toStringAsFixed(0)}/10'
-                        : 'Not rated',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-              OutlinedButton(
-                onPressed: () {
-                  _showRatingDialog(movie, userRating);
-                },
-                child: Text(
-                  userRating == null ? 'Rate Movie' : 'Change Rating',
-                ),
-              ),
-              if (userRating != null)
-                IconButton(
-                  tooltip: 'Remove Rating',
-                  onPressed: () async {
-                    await favorites.removeUserRating(movie);
-                    if (!mounted) return;
-                    setState(() {});
-                    _showMessage('Rating removed');
-                  },
-                  icon: const Icon(Icons.close, color: Colors.grey),
-                ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 28),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            ElevatedButton.icon(
-              onPressed: () async {
-                await favorites.toggle(movie);
-                if (!mounted) return;
-                setState(() {});
-                _showMessage(
-                  favorites.isFavorite(movie)
-                      ? 'Added to Favorites'
-                      : 'Removed from Favorites',
-                );
-              },
-              icon: Icon(isFav ? Icons.favorite : Icons.favorite_border),
-              label: Text(isFav ? 'Favorite' : 'Add Favorite'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: isFav ? Colors.red : Colors.grey[850],
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 14,
-                ),
-              ),
-            ),
-            ElevatedButton.icon(
-              onPressed: () async {
-                await favorites.toggleWatchlist(movie);
-                if (!mounted) return;
-                setState(() {});
-                _showMessage(
-                  favorites.isInWatchlist(movie)
-                      ? 'Added to Watchlist'
-                      : 'Removed from Watchlist',
-                );
-              },
-              icon: Icon(isWatchlist ? Icons.bookmark : Icons.bookmark_border),
-              label: Text(isWatchlist ? 'In Watchlist' : 'Watchlist'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor:
-                    isWatchlist ? Colors.blueGrey : Colors.grey[850],
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 14,
-                ),
-              ),
-            ),
-            ElevatedButton.icon(
-              onPressed: () async {
-                await favorites.toggleWatched(movie);
-                if (!mounted) return;
-                setState(() {});
-                _showMessage(
-                  favorites.isWatched(movie)
-                      ? 'Marked as Watched'
-                      : 'Removed from Watched',
-                );
-              },
-              icon: Icon(
-                isWatched ? Icons.check_circle : Icons.check_circle_outline,
-              ),
-              label: Text(isWatched ? 'Watched' : 'Mark Watched'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: isWatched ? Colors.green : Colors.grey[850],
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 14,
-                ),
-              ),
-            ),
-            if (isWatched)
-              ElevatedButton.icon(
-                onPressed: () async {
-                  await favorites.logRewatch(movie);
-                  if (!mounted) return;
-                  setState(() {});
+      ),
+    );
+  }
 
-                  final count = favorites.getMovieWatchCount(movie);
-                  _showMessage('Rewatch logged • $count total watches');
-                },
-                icon: const Icon(Icons.replay),
-                label: const Text('Log Rewatch'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepPurple,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 14,
+  Widget _ratingCard(Movie movie, double? userRating) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1B1710), Color(0xFF11131A)],
+        ),
+        borderRadius: BorderRadius.circular(19),
+        border: Border.all(color: Colors.amber.withValues(alpha: 0.18)),
+      ),
+      child: Wrap(
+        spacing: 14,
+        runSpacing: 12,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: Colors.amber.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              userRating != null
+                  ? Icons.star_rounded
+                  : Icons.star_border_rounded,
+              color: Colors.amber,
+              size: 28,
+            ),
+          ),
+          SizedBox(
+            width: 190,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Your rating',
+                  style: TextStyle(color: Colors.white54, fontSize: 12),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  userRating == null
+                      ? 'Not rated'
+                      : '${userRating.toStringAsFixed(0)}/10',
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
-              ),
+              ],
+            ),
+          ),
+          OutlinedButton.icon(
+            onPressed: () => _showRatingDialog(movie, userRating),
+            icon: const Icon(Icons.rate_review_outlined),
+            label: Text(userRating == null ? 'Rate Movie' : 'Change Rating'),
+          ),
+          if (userRating != null)
+            TextButton.icon(
+              onPressed: () async {
+                await favorites.removeUserRating(movie);
+                if (!mounted) return;
+                setState(() {});
+                _showMessage('Rating removed');
+              },
+              icon: const Icon(Icons.close_rounded),
+              label: const Text('Remove'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionHeading(String title, String subtitle, IconData icon) {
+    return Row(
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(icon, color: Colors.white70, size: 21),
+        ),
+        const SizedBox(width: 12),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+            ),
+            Text(
+              subtitle,
+              style: const TextStyle(color: Colors.white38, fontSize: 12),
+            ),
           ],
         ),
-        const SizedBox(height: 32),
-        const Text(
-          'Overview',
-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          movie.overview.isNotEmpty
-              ? movie.overview
-              : 'No description available.',
-          style: const TextStyle(
-            fontSize: 16,
-            height: 1.6,
-            color: Colors.white70,
-          ),
-        ),
       ],
+    );
+  }
+
+  Widget _overviewCard(String overview) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF11131A),
+        borderRadius: BorderRadius.circular(19),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Text(
+        overview.isNotEmpty ? overview : 'No description available.',
+        style: const TextStyle(
+          fontSize: 16,
+          height: 1.65,
+          color: Colors.white70,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _toggleFavorite(Movie movie) async {
+    await favorites.toggle(movie);
+    if (!mounted) return;
+    setState(() {});
+    _showMessage(
+      favorites.isFavorite(movie)
+          ? 'Added to Favorites'
+          : 'Removed from Favorites',
+    );
+  }
+
+  Future<void> _toggleWatchlist(Movie movie) async {
+    await favorites.toggleWatchlist(movie);
+    if (!mounted) return;
+    setState(() {});
+    _showMessage(
+      favorites.isInWatchlist(movie)
+          ? 'Added to Watchlist'
+          : 'Removed from Watchlist',
+    );
+  }
+
+  Future<void> _toggleWatched(Movie movie) async {
+    await favorites.toggleWatched(movie);
+    if (!mounted) return;
+    setState(() {});
+    _showMessage(
+      favorites.isWatched(movie) ? 'Marked as Watched' : 'Removed from Watched',
+    );
+  }
+
+  Future<void> _logRewatch(Movie movie) async {
+    await favorites.logRewatch(movie);
+    if (!mounted) return;
+    setState(() {});
+    _showMessage(
+      'Rewatch logged • ${favorites.getMovieWatchCount(movie)} total watches',
     );
   }
 
   String _formatRuntime(int minutes) {
     final hours = minutes ~/ 60;
     final remainingMinutes = minutes % 60;
-
     if (hours == 0) return '$remainingMinutes min';
     if (remainingMinutes == 0) return '${hours}h';
     return '${hours}h ${remainingMinutes}m';
@@ -487,14 +719,13 @@ class _DetailsScreenState extends State<DetailsScreen> {
       'November',
       'December',
     ];
-
     return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 
   Future<void> _showRatingDialog(Movie movie, double? currentRating) async {
     int selectedRating = currentRating?.toInt() ?? 0;
 
-    final int? rating = await showDialog<int>(
+    final rating = await showDialog<int>(
       context: context,
       builder: (dialogContext) {
         return StatefulBuilder(
@@ -502,62 +733,61 @@ class _DetailsScreenState extends State<DetailsScreen> {
             return AlertDialog(
               title: Text('Rate ${movie.title}'),
               content: SizedBox(
-                width: 350,
+                width: 360,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('Choose a rating from 1 to 10'),
+                    const Text('Choose your personal rating from 1 to 10.'),
                     const SizedBox(height: 20),
                     Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
+                      spacing: 9,
+                      runSpacing: 9,
                       alignment: WrapAlignment.center,
                       children: List.generate(10, (index) {
-                        final int value = index + 1;
+                        final value = index + 1;
                         return ChoiceChip(
                           label: Text('$value'),
                           selected: selectedRating == value,
                           onSelected: (_) {
-                            setDialogState(() {
-                              selectedRating = value;
-                            });
+                            setDialogState(() => selectedRating = value);
                           },
                         );
                       }),
                     ),
-                    const SizedBox(height: 20),
-                    if (selectedRating > 0)
+                    if (selectedRating > 0) ...[
+                      const SizedBox(height: 20),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.star, color: Colors.amber, size: 30),
-                          const SizedBox(width: 8),
+                          const Icon(
+                            Icons.star_rounded,
+                            color: Colors.amber,
+                            size: 30,
+                          ),
+                          const SizedBox(width: 7),
                           Text(
                             '$selectedRating/10',
                             style: const TextStyle(
                               fontSize: 24,
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w900,
                             ),
                           ),
                         ],
                       ),
+                    ],
                   ],
                 ),
               ),
               actions: [
                 TextButton(
-                  onPressed: () {
-                    Navigator.pop(dialogContext);
-                  },
+                  onPressed: () => Navigator.pop(dialogContext),
                   child: const Text('Cancel'),
                 ),
                 ElevatedButton(
                   onPressed: selectedRating == 0
                       ? null
-                      : () {
-                          Navigator.pop(dialogContext, selectedRating);
-                        },
-                  child: const Text('Save'),
+                      : () => Navigator.pop(dialogContext, selectedRating),
+                  child: const Text('Save Rating'),
                 ),
               ],
             );
@@ -567,7 +797,6 @@ class _DetailsScreenState extends State<DetailsScreen> {
     );
 
     if (rating == null) return;
-
     await favorites.setUserRating(movie, rating.toDouble());
     if (!mounted) return;
     setState(() {});
@@ -578,7 +807,10 @@ class _DetailsScreenState extends State<DetailsScreen> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(duration: const Duration(seconds: 1), content: Text(message)),
+        SnackBar(
+          duration: const Duration(seconds: 1),
+          content: Text(message),
+        ),
       );
   }
 }
