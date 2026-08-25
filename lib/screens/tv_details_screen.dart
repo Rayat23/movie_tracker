@@ -192,10 +192,11 @@ class _TvDetailsScreenState extends State<TvDetailsScreen> {
   Widget _showInfo(TvShow show) {
     final watchedEpisodes = tracking.watchedEpisodeCountForShow(show.id);
     final totalEpisodes = show.numberOfEpisodes;
-    final progress = totalEpisodes > 0
-        ? watchedEpisodes / totalEpisodes
-        : 0.0;
+    final progress = totalEpisodes > 0 ? watchedEpisodes / totalEpisodes : 0.0;
     final watchedMinutes = tracking.watchedMinutesForShow(show.id);
+    final isFavorite = tracking.isFavorite(show);
+    final isWatchlist = tracking.isInWatchlist(show);
+    final userRating = tracking.getUserRating(show);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -236,6 +237,115 @@ class _TvDetailsScreenState extends State<TvDetailsScreen> {
                 Colors.greenAccent,
               ),
           ],
+        ),
+        const SizedBox(height: 24),
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            ElevatedButton.icon(
+              onPressed: () async {
+                await tracking.toggleFavorite(show);
+                if (!mounted) return;
+                setState(() {});
+                _showMessage(
+                  tracking.isFavorite(show)
+                      ? 'Added to TV Favorites'
+                      : 'Removed from TV Favorites',
+                );
+              },
+              icon: Icon(
+                isFavorite ? Icons.favorite : Icons.favorite_border,
+              ),
+              label: Text(
+                isFavorite ? 'Favorite' : 'Add Favorite',
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isFavorite ? Colors.red : Colors.grey[850],
+                foregroundColor: Colors.white,
+              ),
+            ),
+            ElevatedButton.icon(
+              onPressed: () async {
+                await tracking.toggleWatchlist(show);
+                if (!mounted) return;
+                setState(() {});
+                _showMessage(
+                  tracking.isInWatchlist(show)
+                      ? 'Added to TV Watchlist'
+                      : 'Removed from TV Watchlist',
+                );
+              },
+              icon: Icon(
+                isWatchlist ? Icons.bookmark : Icons.bookmark_border,
+              ),
+              label: Text(
+                isWatchlist ? 'In Watchlist' : 'Watchlist',
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor:
+                    isWatchlist ? Colors.blueGrey : Colors.grey[850],
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.grey[900],
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Wrap(
+            spacing: 14,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Icon(
+                userRating != null ? Icons.star : Icons.star_border,
+                color: Colors.amber,
+                size: 26,
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Your Series Rating',
+                    style: TextStyle(fontSize: 13, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    userRating != null
+                        ? '${userRating.toStringAsFixed(0)}/10'
+                        : 'Not rated',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              OutlinedButton(
+                onPressed: () => _showRatingDialog(show, userRating),
+                child: Text(
+                  userRating == null ? 'Rate Series' : 'Change Rating',
+                ),
+              ),
+              if (userRating != null)
+                IconButton(
+                  tooltip: 'Remove Rating',
+                  onPressed: () async {
+                    await tracking.removeUserRating(show);
+                    if (!mounted) return;
+                    setState(() {});
+                    _showMessage('Series rating removed');
+                  },
+                  icon: const Icon(Icons.close, color: Colors.grey),
+                ),
+            ],
+          ),
         ),
         const SizedBox(height: 28),
         Container(
@@ -316,6 +426,94 @@ class _TvDetailsScreenState extends State<TvDetailsScreen> {
     );
   }
 
+  Future<void> _showRatingDialog(
+    TvShow show,
+    double? currentRating,
+  ) async {
+    int selectedRating = currentRating?.toInt() ?? 0;
+
+    final rating = await showDialog<int>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text('Rate ${show.name}'),
+              content: SizedBox(
+                width: 350,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Choose a rating from 1 to 10'),
+                    const SizedBox(height: 20),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      alignment: WrapAlignment.center,
+                      children: List.generate(10, (index) {
+                        final value = index + 1;
+
+                        return ChoiceChip(
+                          label: Text('$value'),
+                          selected: selectedRating == value,
+                          onSelected: (_) {
+                            setDialogState(() {
+                              selectedRating = value;
+                            });
+                          },
+                        );
+                      }),
+                    ),
+                    const SizedBox(height: 20),
+                    if (selectedRating > 0)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.star,
+                            color: Colors.amber,
+                            size: 30,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '$selectedRating/10',
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: selectedRating == 0
+                      ? null
+                      : () => Navigator.pop(dialogContext, selectedRating),
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (rating == null) return;
+
+    await tracking.setUserRating(show, rating.toDouble());
+    if (!mounted) return;
+
+    setState(() {});
+    _showMessage('You rated ${show.name} $rating/10');
+  }
+
   Widget _infoChip(IconData icon, String text, Color color) {
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -340,6 +538,17 @@ class _TvDetailsScreenState extends State<TvDetailsScreen> {
     }
 
     return '${hours}h ${remainingMinutes}m watched';
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 1),
+          content: Text(message),
+        ),
+      );
   }
 }
 
