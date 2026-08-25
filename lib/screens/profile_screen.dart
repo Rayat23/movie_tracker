@@ -41,6 +41,8 @@ class ProfileScreen extends StatelessWidget {
     final movieMinutes = favorites.totalMovieMinutes;
     final tvMinutes = seriesTracking.totalTvMinutes;
     final totalMinutes = movieMinutes + tvMinutes;
+    final totalRewatches =
+        favorites.totalMovieRewatches + seriesTracking.totalTvRewatches;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -65,7 +67,7 @@ class ProfileScreen extends StatelessWidget {
                         ),
                         SizedBox(height: 8),
                         Text(
-                          'Movies, TV progress, ratings, diary, and total watch time.',
+                          'Movies, TV progress, ratings, rewatches, diary, and total watch time.',
                           style: TextStyle(
                             fontSize: 15,
                             color: Colors.grey,
@@ -104,6 +106,12 @@ class ProfileScreen extends StatelessWidget {
                     iconColor: Colors.green,
                   ),
                   _buildStatCard(
+                    icon: Icons.replay_circle_filled,
+                    title: 'Movie Watches',
+                    value: '${favorites.totalMovieWatchEvents}',
+                    iconColor: Colors.deepPurpleAccent,
+                  ),
+                  _buildStatCard(
                     icon: Icons.tv,
                     title: 'Series Started',
                     value: '${seriesTracking.watchedSeriesCount}',
@@ -114,6 +122,18 @@ class ProfileScreen extends StatelessWidget {
                     title: 'Episodes Watched',
                     value: '${seriesTracking.totalWatchedEpisodes}',
                     iconColor: Colors.greenAccent,
+                  ),
+                  _buildStatCard(
+                    icon: Icons.replay,
+                    title: 'Episode Watches',
+                    value: '${seriesTracking.totalTvWatchEvents}',
+                    iconColor: Colors.deepPurpleAccent,
+                  ),
+                  _buildStatCard(
+                    icon: Icons.repeat,
+                    title: 'Total Rewatches',
+                    value: '$totalRewatches',
+                    iconColor: Colors.purpleAccent,
                   ),
                   _buildStatCard(
                     icon: Icons.movie_filter,
@@ -175,7 +195,7 @@ class ProfileScreen extends StatelessWidget {
                     SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Movie runtime is fetched from TMDB when you open a movie details page. Older watched movies may show 0 watch time until you open their details once.',
+                        'Watch-time totals include rewatches. Movie runtime is fetched from TMDB when you open a movie details page, so older watched movies may need to be opened once before their runtime is included.',
                         style: TextStyle(color: Colors.white70),
                       ),
                     ),
