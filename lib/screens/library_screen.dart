@@ -23,19 +23,29 @@ class _LibraryScreenState extends State<LibraryScreen>
 
   late final TabController tabController;
   int mediaTypeIndex = 0;
+  int selectedTabIndex = 0;
 
   @override
   void initState() {
     super.initState();
     tabController = TabController(length: 3, vsync: this);
-    tabController.addListener(_refresh);
+    tabController.addListener(_handleTabChange);
   }
 
   @override
   void dispose() {
-    tabController.removeListener(_refresh);
+    tabController.removeListener(_handleTabChange);
     tabController.dispose();
     super.dispose();
+  }
+
+  void _handleTabChange() {
+    if (tabController.indexIsChanging) return;
+    if (selectedTabIndex == tabController.index) return;
+
+    setState(() {
+      selectedTabIndex = tabController.index;
+    });
   }
 
   @override
@@ -43,54 +53,182 @@ class _LibraryScreenState extends State<LibraryScreen>
     final isMovies = mediaTypeIndex == 0;
     final profile = profiles.activeProfile;
 
-    return Column(
-      children: [
-        Expanded(
-          child: CustomScrollView(
-            slivers: [
-              SliverToBoxAdapter(
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 1280),
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(22, 24, 22, 0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _pageHeader(profile.name),
-                          const SizedBox(height: 20),
-                          _summaryStrip(),
-                          const SizedBox(height: 22),
-                          _mediaSelector(),
-                          const SizedBox(height: 14),
-                          _tabBar(isMovies),
-                          const SizedBox(height: 18),
-                        ],
-                      ),
-                    ),
-                  ),
+    return CustomScrollView(
+      slivers: [
+        SliverToBoxAdapter(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1280),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(22, 24, 22, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _pageHeader(profile.name),
+                    const SizedBox(height: 20),
+                    _summaryStrip(),
+                    const SizedBox(height: 22),
+                    _mediaSelector(),
+                    const SizedBox(height: 14),
+                    _tabBar(isMovies),
+                    const SizedBox(height: 22),
+                  ],
                 ),
               ),
-              SliverFillRemaining(
-                hasScrollBody: true,
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 1280),
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(22, 0, 22, 28),
-                      child: TabBarView(
-                        controller: tabController,
-                        children: isMovies ? _movieTabs() : _tvTabs(),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
+        ..._selectedContentSlivers(),
+        const SliverToBoxAdapter(child: SizedBox(height: 32)),
       ],
     );
+  }
+
+  List<Widget> _selectedContentSlivers() {
+    if (mediaTypeIndex == 0) {
+      switch (selectedTabIndex) {
+        case 0:
+          return _movieContentSlivers(
+            movies: favorites.favorites,
+            emptyIcon: Icons.favorite_border_rounded,
+            emptyTitle: 'No favorite movies yet',
+            emptyMessage:
+                'Tap the heart on a movie to build your favorites collection.',
+          );
+        case 1:
+          return _movieContentSlivers(
+            movies: favorites.watchlist,
+            emptyIcon: Icons.bookmark_border_rounded,
+            emptyTitle: 'Your movie watchlist is empty',
+            emptyMessage: 'Save movies here when you want to watch them later.',
+          );
+        default:
+          return _movieContentSlivers(
+            movies: favorites.watched,
+            emptyIcon: Icons.check_circle_outline_rounded,
+            emptyTitle: 'No watched movies yet',
+            emptyMessage:
+                'Movies you mark watched will appear here with your ratings.',
+            showUserRating: true,
+          );
+      }
+    }
+
+    switch (selectedTabIndex) {
+      case 0:
+        return _tvContentSlivers(
+          shows: seriesTracking.favorites,
+          emptyIcon: Icons.favorite_border_rounded,
+          emptyTitle: 'No favorite series yet',
+          emptyMessage: 'Favorite a series and it will stay in this collection.',
+          showUserRating: true,
+        );
+      case 1:
+        return _tvContentSlivers(
+          shows: seriesTracking.watchlist,
+          emptyIcon: Icons.bookmark_border_rounded,
+          emptyTitle: 'Your TV watchlist is empty',
+          emptyMessage: 'Save series you want to start later.',
+          showUserRating: true,
+        );
+      default:
+        return _tvContentSlivers(
+          shows: seriesTracking.startedShows,
+          emptyIcon: Icons.play_circle_outline_rounded,
+          emptyTitle: 'No started series yet',
+          emptyMessage:
+              'A series appears here as soon as you watch its first episode.',
+          showUserRating: true,
+        );
+    }
+  }
+
+  List<Widget> _movieContentSlivers({
+    required List<Movie> movies,
+    required IconData emptyIcon,
+    required String emptyTitle,
+    required String emptyMessage,
+    bool showUserRating = false,
+  }) {
+    if (movies.isEmpty) {
+      return [
+        SliverToBoxAdapter(
+          child: _emptyState(
+            icon: emptyIcon,
+            title: emptyTitle,
+            message: emptyMessage,
+          ),
+        ),
+      ];
+    }
+
+    return [
+      SliverPadding(
+        padding: const EdgeInsets.fromLTRB(22, 0, 22, 18),
+        sliver: SliverGrid(
+          gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: 205,
+            mainAxisExtent: showUserRating ? 345 : 325,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 20,
+          ),
+          delegate: SliverChildBuilderDelegate(
+            (context, index) {
+              return MovieCard(
+                movie: movies[index],
+                showUserRating: showUserRating,
+                onReturn: _refresh,
+              );
+            },
+            childCount: movies.length,
+          ),
+        ),
+      ),
+    ];
+  }
+
+  List<Widget> _tvContentSlivers({
+    required List<TvShow> shows,
+    required IconData emptyIcon,
+    required String emptyTitle,
+    required String emptyMessage,
+    bool showUserRating = false,
+  }) {
+    if (shows.isEmpty) {
+      return [
+        SliverToBoxAdapter(
+          child: _emptyState(
+            icon: emptyIcon,
+            title: emptyTitle,
+            message: emptyMessage,
+          ),
+        ),
+      ];
+    }
+
+    return [
+      SliverPadding(
+        padding: const EdgeInsets.fromLTRB(22, 0, 22, 18),
+        sliver: SliverGrid(
+          gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: 205,
+            mainAxisExtent: showUserRating ? 345 : 325,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 20,
+          ),
+          delegate: SliverChildBuilderDelegate(
+            (context, index) {
+              return TvShowCard(
+                show: shows[index],
+                showUserRating: showUserRating,
+                onReturn: _refresh,
+              );
+            },
+            childCount: shows.length,
+          ),
+        ),
+      ),
+    ];
   }
 
   Widget _pageHeader(String profileName) {
@@ -123,7 +261,10 @@ class _LibraryScreenState extends State<LibraryScreen>
             color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.25),
+              color: Theme.of(context)
+                  .colorScheme
+                  .primary
+                  .withValues(alpha: 0.25),
             ),
           ),
           child: Row(
@@ -164,7 +305,8 @@ class _LibraryScreenState extends State<LibraryScreen>
 
   Widget _summaryStrip() {
     final movieSaved = favorites.favorites.length + favorites.watchlist.length;
-    final tvSaved = seriesTracking.favorites.length + seriesTracking.watchlist.length;
+    final tvSaved =
+        seriesTracking.favorites.length + seriesTracking.watchlist.length;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -214,9 +356,12 @@ class _LibraryScreenState extends State<LibraryScreen>
     double availableWidth,
   ) {
     final compact = availableWidth < 700;
+    final width = compact
+        ? ((availableWidth - 12) / 2).clamp(140.0, double.infinity)
+        : 190.0;
 
     return Container(
-      width: compact ? (availableWidth - 12) / 2 : 190,
+      width: width,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: const Color(0xFF11131A),
@@ -290,6 +435,7 @@ class _LibraryScreenState extends State<LibraryScreen>
         onTap: () {
           setState(() {
             mediaTypeIndex = index;
+            selectedTabIndex = 0;
             tabController.index = 0;
           });
         },
@@ -299,7 +445,10 @@ class _LibraryScreenState extends State<LibraryScreen>
           padding: const EdgeInsets.symmetric(vertical: 13),
           decoration: BoxDecoration(
             color: selected
-                ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.18)
+                ? Theme.of(context)
+                    .colorScheme
+                    .primary
+                    .withValues(alpha: 0.18)
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(13),
           ),
@@ -335,6 +484,11 @@ class _LibraryScreenState extends State<LibraryScreen>
       ),
       child: TabBar(
         controller: tabController,
+        onTap: (index) {
+          setState(() {
+            selectedTabIndex = index;
+          });
+        },
         dividerColor: Colors.transparent,
         indicatorSize: TabBarIndicatorSize.tab,
         indicator: BoxDecoration(
@@ -357,170 +511,55 @@ class _LibraryScreenState extends State<LibraryScreen>
     );
   }
 
-  List<Widget> _movieTabs() {
-    return [
-      _buildMovieList(
-        movies: favorites.favorites,
-        emptyIcon: Icons.favorite_border_rounded,
-        emptyTitle: 'No favorite movies yet',
-        emptyMessage: 'Tap the heart on a movie to build your favorites collection.',
-      ),
-      _buildMovieList(
-        movies: favorites.watchlist,
-        emptyIcon: Icons.bookmark_border_rounded,
-        emptyTitle: 'Your movie watchlist is empty',
-        emptyMessage: 'Save movies here when you want to watch them later.',
-      ),
-      _buildMovieList(
-        movies: favorites.watched,
-        emptyIcon: Icons.check_circle_outline_rounded,
-        emptyTitle: 'No watched movies yet',
-        emptyMessage: 'Movies you mark watched will appear here with your ratings.',
-        showUserRating: true,
-      ),
-    ];
-  }
-
-  List<Widget> _tvTabs() {
-    return [
-      _buildTvList(
-        shows: seriesTracking.favorites,
-        emptyIcon: Icons.favorite_border_rounded,
-        emptyTitle: 'No favorite series yet',
-        emptyMessage: 'Favorite a series and it will stay in this collection.',
-        showUserRating: true,
-      ),
-      _buildTvList(
-        shows: seriesTracking.watchlist,
-        emptyIcon: Icons.bookmark_border_rounded,
-        emptyTitle: 'Your TV watchlist is empty',
-        emptyMessage: 'Save series you want to start later.',
-        showUserRating: true,
-      ),
-      _buildTvList(
-        shows: seriesTracking.startedShows,
-        emptyIcon: Icons.play_circle_outline_rounded,
-        emptyTitle: 'No started series yet',
-        emptyMessage: 'A series appears here as soon as you watch its first episode.',
-        showUserRating: true,
-      ),
-    ];
-  }
-
-  Widget _buildMovieList({
-    required List<Movie> movies,
-    required IconData emptyIcon,
-    required String emptyTitle,
-    required String emptyMessage,
-    bool showUserRating = false,
-  }) {
-    if (movies.isEmpty) {
-      return _emptyState(
-        icon: emptyIcon,
-        title: emptyTitle,
-        message: emptyMessage,
-      );
-    }
-
-    return GridView.builder(
-      padding: const EdgeInsets.only(bottom: 18),
-      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 205,
-        mainAxisExtent: showUserRating ? 345 : 325,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 20,
-      ),
-      itemCount: movies.length,
-      itemBuilder: (context, index) {
-        return MovieCard(
-          movie: movies[index],
-          showUserRating: showUserRating,
-          onReturn: _refresh,
-        );
-      },
-    );
-  }
-
-  Widget _buildTvList({
-    required List<TvShow> shows,
-    required IconData emptyIcon,
-    required String emptyTitle,
-    required String emptyMessage,
-    bool showUserRating = false,
-  }) {
-    if (shows.isEmpty) {
-      return _emptyState(
-        icon: emptyIcon,
-        title: emptyTitle,
-        message: emptyMessage,
-      );
-    }
-
-    return GridView.builder(
-      padding: const EdgeInsets.only(bottom: 18),
-      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 205,
-        mainAxisExtent: showUserRating ? 345 : 325,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 20,
-      ),
-      itemCount: shows.length,
-      itemBuilder: (context, index) {
-        return TvShowCard(
-          show: shows[index],
-          showUserRating: showUserRating,
-          onReturn: _refresh,
-        );
-      },
-    );
-  }
-
   Widget _emptyState({
     required IconData icon,
     required String title,
     required String message,
   }) {
-    return Center(
-      child: Container(
-        width: double.infinity,
-        constraints: const BoxConstraints(maxWidth: 560),
-        padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 42),
-        decoration: BoxDecoration(
-          color: const Color(0xFF11131A),
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: Colors.white10),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05),
-                shape: BoxShape.circle,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 22, 22, 40),
+      child: Center(
+        child: Container(
+          width: double.infinity,
+          constraints: const BoxConstraints(maxWidth: 560),
+          padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 42),
+          decoration: BoxDecoration(
+            color: const Color(0xFF11131A),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: Colors.white10),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 34, color: Colors.white38),
               ),
-              child: Icon(icon, size: 34, color: Colors.white38),
-            ),
-            const SizedBox(height: 18),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
+              const SizedBox(height: 18),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white54,
-                height: 1.45,
+              const SizedBox(height: 8),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white54,
+                  height: 1.45,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
