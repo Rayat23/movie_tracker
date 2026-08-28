@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../models/user_profile.dart';
+import '../services/account_service.dart';
+import '../services/firebase_bootstrap.dart';
 import '../services/profile_service.dart';
+import 'account_screen.dart';
 
 class ProfilesScreen extends StatefulWidget {
   const ProfilesScreen({super.key});
@@ -12,6 +15,7 @@ class ProfilesScreen extends StatefulWidget {
 
 class _ProfilesScreenState extends State<ProfilesScreen> {
   final ProfileService profiles = ProfileService.instance;
+  final AccountService accounts = AccountService.instance;
 
   static const List<Color> avatarColors = [
     Color(0xFFE53935),
@@ -64,32 +68,123 @@ class _ProfilesScreenState extends State<ProfilesScreen> {
                   ],
                 ),
                 const SizedBox(height: 28),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF11131A),
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: Colors.white10),
-                  ),
-                  child: const Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(Icons.cloud_outlined, color: Colors.white54),
-                      SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'These profiles are separated on this device/browser now. The next account phase will connect profiles to sign-in and cloud sync so each person can keep the same data across web, desktop, and mobile.',
-                          style: TextStyle(color: Colors.white60, height: 1.45),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                _cloudAccountCard(),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _cloudAccountCard() {
+    final configured = FirebaseBootstrap.isConfigured;
+    final user = accounts.currentUser;
+    final signedIn = user != null;
+
+    final IconData icon;
+    final Color iconColor;
+    final String title;
+    final String description;
+    final String buttonLabel;
+
+    if (!configured) {
+      icon = Icons.cloud_off_rounded;
+      iconColor = Colors.white54;
+      title = 'Local profiles are active';
+      description =
+          'Cloud account support is now built into Movie Tracker. Connect a Firebase project to enable real email/password sign-in and cloud backup across devices.';
+      buttonLabel = 'Open Cloud Setup';
+    } else if (signedIn) {
+      icon = Icons.cloud_done_rounded;
+      iconColor = Colors.greenAccent;
+      title = 'Signed in${user.email == null ? '' : ' • ${user.email}'}';
+      description =
+          'Back up or restore all of these profiles from your private cloud account.';
+      buttonLabel = 'Account & Cloud Sync';
+    } else {
+      icon = Icons.cloud_queue_rounded;
+      iconColor = Colors.lightBlueAccent;
+      title = 'Cloud accounts are ready';
+      description =
+          'Sign in or create an account to keep these profiles backed up and available on another device.';
+      buttonLabel = 'Sign In / Create Account';
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF11131A),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 650;
+          final info = Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: iconColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(icon, color: iconColor),
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      description,
+                      style: const TextStyle(
+                        color: Colors.white60,
+                        height: 1.45,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+
+          final button = FilledButton.icon(
+            onPressed: _openAccount,
+            icon: const Icon(Icons.manage_accounts_rounded),
+            label: Text(buttonLabel),
+          );
+
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                info,
+                const SizedBox(height: 16),
+                button,
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(child: info),
+              const SizedBox(width: 20),
+              button,
+            ],
+          );
+        },
       ),
     );
   }
@@ -225,6 +320,15 @@ class _ProfilesScreenState extends State<ProfilesScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _openAccount() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const AccountScreen()),
+    );
+    if (!mounted) return;
+    setState(() {});
   }
 
   Future<void> _createProfile() async {
