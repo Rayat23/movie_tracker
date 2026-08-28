@@ -42,6 +42,7 @@ class _AccountScreenState extends State<AccountScreen> {
 
   Future<void> _loadCloudStatus() async {
     if (!accounts.isSignedIn) return;
+
     try {
       final value = await cloudSync.lastCloudUpdate();
       if (!mounted) return;
@@ -49,7 +50,7 @@ class _AccountScreenState extends State<AccountScreen> {
         lastCloudUpdate = value;
       });
     } catch (_) {
-      // The account page remains usable even if status lookup fails.
+      // Status lookup should never block the account screen.
     }
   }
 
@@ -61,7 +62,7 @@ class _AccountScreenState extends State<AccountScreen> {
         padding: const EdgeInsets.fromLTRB(20, 24, 20, 40),
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 980),
+            constraints: const BoxConstraints(maxWidth: 920),
             child: !FirebaseBootstrap.isConfigured
                 ? _configurationRequired()
                 : accounts.isSignedIn
@@ -74,41 +75,23 @@ class _AccountScreenState extends State<AccountScreen> {
   }
 
   Widget _configurationRequired() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _heroCard(
-          icon: Icons.cloud_off_rounded,
-          title: 'Cloud accounts are ready in the app code',
-          message:
-              'This build is running in local-only mode because Firebase project values have not been supplied yet. Your profiles still work normally on this browser/device.',
-        ),
-        const SizedBox(height: 20),
-        _panel(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'One-time Firebase setup required',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'After a Firebase project is connected, this screen becomes the real email/password sign-up and sign-in page. Firebase values are passed at run/build time, so they do not need to be committed into the repository.',
-                style: TextStyle(color: Colors.white60, height: 1.5),
-              ),
-              const SizedBox(height: 18),
-              _setupRow('1', 'Create/connect a Firebase project.'),
-              _setupRow('2', 'Enable Email/Password in Firebase Authentication.'),
-              _setupRow('3', 'Create a Cloud Firestore database.'),
-              _setupRow(
-                '4',
-                'Run Movie Tracker with the Firebase --dart-define values for that project.',
-              ),
-            ],
+    return _panel(
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.cloud_off_rounded, size: 46, color: Colors.white54),
+          SizedBox(height: 16),
+          Text(
+            'Firebase configuration required',
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
           ),
-        ),
-      ],
+          SizedBox(height: 10),
+          Text(
+            'Run Movie Tracker with the Firebase --dart-define values to enable accounts and cloud sync. Local profiles continue to work without Firebase.',
+            style: TextStyle(color: Colors.white60, height: 1.5),
+          ),
+        ],
+      ),
     );
   }
 
@@ -116,14 +99,16 @@ class _AccountScreenState extends State<AccountScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _heroCard(
-          icon: createMode ? Icons.person_add_alt_1_rounded : Icons.login_rounded,
-          title: createMode ? 'Create your Movie Tracker account' : 'Sign in to Movie Tracker',
-          message: createMode
-              ? 'Your local profiles can be backed up to your new account after registration.'
-              : 'Sign in to access your cloud profile backups across devices.',
+        _hero(
+          createMode ? Icons.person_add_alt_1_rounded : Icons.login_rounded,
+          createMode
+              ? 'Create your Movie Tracker account'
+              : 'Sign in to Movie Tracker',
+          createMode
+              ? 'Create the account first. After you are signed in, use the cloud backup button to upload your local profiles.'
+              : 'Sign in to access profile backups connected to your account.',
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 18),
         _panel(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -207,7 +192,11 @@ class _AccountScreenState extends State<AccountScreen> {
                               ? Icons.person_add_alt_1_rounded
                               : Icons.login_rounded,
                         ),
-                  label: Text(createMode ? 'Create Account' : 'Sign In'),
+                  label: Text(
+                    busy
+                        ? (createMode ? 'Creating account...' : 'Signing in...')
+                        : (createMode ? 'Create Account' : 'Sign In'),
+                  ),
                 ),
               ),
               if (!createMode) ...[
@@ -234,97 +223,26 @@ class _AccountScreenState extends State<AccountScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _heroCard(
-          icon: Icons.cloud_done_rounded,
-          title: user.displayName?.trim().isNotEmpty == true
+        _hero(
+          Icons.cloud_done_rounded,
+          user.displayName?.trim().isNotEmpty == true
               ? 'Welcome, ${user.displayName}'
-              : 'Your cloud account',
-          message: user.email ?? 'Signed in to Movie Tracker',
+              : 'Your Movie Tracker account',
+          user.email ?? 'Signed in',
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 18),
         LayoutBuilder(
           builder: (context, constraints) {
-            final compact = constraints.maxWidth < 760;
-            final accountCard = _panel(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Row(
-                    children: [
-                      Icon(Icons.verified_user_outlined, color: Colors.greenAccent),
-                      SizedBox(width: 10),
-                      Text(
-                        'Account',
-                        style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  _detailRow('Email', user.email ?? '—'),
-                  _detailRow('Local profiles', '$profileCount'),
-                  _detailRow(
-                    'Last cloud backup',
-                    lastCloudUpdate == null
-                        ? 'No cloud backup yet'
-                        : _formatDateTime(lastCloudUpdate!),
-                  ),
-                  const SizedBox(height: 18),
-                  OutlinedButton.icon(
-                    onPressed: busy ? null : _signOut,
-                    icon: const Icon(Icons.logout_rounded),
-                    label: const Text('Sign Out'),
-                  ),
-                ],
-              ),
-            );
-
-            final syncCard = _panel(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Row(
-                    children: [
-                      Icon(Icons.sync_rounded, color: Colors.lightBlueAccent),
-                      SizedBox(width: 10),
-                      Text(
-                        'Cloud Data',
-                        style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Back up all local profiles or restore the profiles already stored in this account.',
-                    style: TextStyle(color: Colors.white60, height: 1.45),
-                  ),
-                  const SizedBox(height: 18),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: busy ? null : _backupNow,
-                      icon: const Icon(Icons.cloud_upload_outlined),
-                      label: const Text('Back Up This Device'),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: busy ? null : _restoreFromCloud,
-                      icon: const Icon(Icons.cloud_download_outlined),
-                      label: const Text('Restore From Cloud'),
-                    ),
-                  ),
-                ],
-              ),
-            );
+            final compact = constraints.maxWidth < 720;
+            final accountCard = _accountCard(user.email, profileCount);
+            final cloudCard = _cloudCard();
 
             if (compact) {
               return Column(
                 children: [
                   accountCard,
                   const SizedBox(height: 16),
-                  syncCard,
+                  cloudCard,
                 ],
               );
             }
@@ -334,7 +252,7 @@ class _AccountScreenState extends State<AccountScreen> {
               children: [
                 Expanded(child: accountCard),
                 const SizedBox(width: 16),
-                Expanded(child: syncCard),
+                Expanded(child: cloudCard),
               ],
             );
           },
@@ -348,6 +266,95 @@ class _AccountScreenState extends State<AccountScreen> {
           _messageBox(successMessage!, isError: false),
         ],
       ],
+    );
+  }
+
+  Widget _accountCard(String? email, int profileCount) {
+    return _panel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.verified_user_outlined, color: Colors.greenAccent),
+              SizedBox(width: 10),
+              Text(
+                'Account',
+                style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          _detailRow('Email', email ?? '—'),
+          _detailRow('Local profiles', '$profileCount'),
+          _detailRow(
+            'Last cloud backup',
+            lastCloudUpdate == null
+                ? 'No confirmed cloud backup yet'
+                : _formatDateTime(lastCloudUpdate!),
+          ),
+          const SizedBox(height: 18),
+          OutlinedButton.icon(
+            onPressed: busy ? null : _signOut,
+            icon: const Icon(Icons.logout_rounded),
+            label: const Text('Sign Out'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _cloudCard() {
+    return _panel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.sync_rounded, color: Colors.lightBlueAccent),
+              SizedBox(width: 10),
+              Text(
+                'Cloud Data',
+                style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Back up every local profile to this account, or restore the latest profile set stored in Firestore.',
+            style: TextStyle(color: Colors.white60, height: 1.45),
+          ),
+          const SizedBox(height: 18),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: busy ? null : _backupNow,
+              icon: busy
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.cloud_upload_outlined),
+              label: Text(busy ? 'Working...' : 'Back Up This Device'),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: busy ? null : _restoreFromCloud,
+              icon: const Icon(Icons.cloud_download_outlined),
+              label: const Text('Restore From Cloud'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Cloud operations now stop with a readable error instead of loading forever if Firestore cannot respond.',
+            style: TextStyle(fontSize: 12, color: Colors.white38, height: 1.4),
+          ),
+        ],
+      ),
     );
   }
 
@@ -377,44 +384,63 @@ class _AccountScreenState extends State<AccountScreen> {
           email: email,
           password: password,
         );
-        await cloudSync.uploadAllProfiles();
-        successMessage = 'Account created and local profiles backed up.';
-      } else {
-        await accounts.signIn(email: email, password: password);
-        successMessage = 'Signed in successfully.';
+        passwordController.clear();
+
+        if (!mounted) return;
+        setState(() {
+          busy = false;
+          successMessage =
+              'Account created and signed in. Use “Back Up This Device” to upload your profiles.';
+        });
+        _loadCloudStatus();
+        return;
       }
 
+      await accounts.signIn(email: email, password: password);
       passwordController.clear();
-      await _loadCloudStatus();
-    } catch (error) {
-      errorMessage = accounts.friendlyError(error);
-    }
 
-    if (!mounted) return;
-    setState(() {
-      busy = false;
-    });
+      if (!mounted) return;
+      setState(() {
+        busy = false;
+        successMessage = 'Signed in successfully.';
+      });
+      _loadCloudStatus();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        busy = false;
+        errorMessage = accounts.friendlyError(error);
+      });
+    }
   }
 
   Future<void> _backupNow() async {
     setState(() {
       busy = true;
       errorMessage = null;
-      successMessage = null;
+      successMessage = 'Starting cloud backup...';
     });
 
     try {
       await cloudSync.uploadAllProfiles();
-      lastCloudUpdate = await cloudSync.lastCloudUpdate();
-      successMessage = 'All local profiles were backed up to this account.';
-    } catch (error) {
-      errorMessage = error.toString();
-    }
+      final updated = await cloudSync.lastCloudUpdate();
 
-    if (!mounted) return;
-    setState(() {
-      busy = false;
-    });
+      if (!mounted) return;
+      setState(() {
+        busy = false;
+        lastCloudUpdate = updated ?? DateTime.now();
+        errorMessage = null;
+        successMessage =
+            'Backup complete. ${ProfileService.instance.profiles.length} local profile(s) are now stored in this account.';
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        busy = false;
+        successMessage = null;
+        errorMessage = cloudSync.friendlyError(error);
+      });
+    }
   }
 
   Future<void> _restoreFromCloud() async {
@@ -424,7 +450,7 @@ class _AccountScreenState extends State<AccountScreen> {
         return AlertDialog(
           title: const Text('Restore cloud profiles?'),
           content: const Text(
-            'This replaces the local profiles and tracking data on this device with the profiles currently stored in your cloud account.',
+            'This replaces the local profiles and tracking data on this device with the latest profiles stored in this cloud account.',
           ),
           actions: [
             TextButton(
@@ -445,22 +471,32 @@ class _AccountScreenState extends State<AccountScreen> {
     setState(() {
       busy = true;
       errorMessage = null;
-      successMessage = null;
+      successMessage = 'Checking cloud profiles...';
     });
 
     try {
       final restored = await cloudSync.downloadCloudProfiles();
-      successMessage = restored
-          ? 'Cloud profiles restored on this device.'
-          : 'No cloud profiles were found for this account.';
-    } catch (error) {
-      errorMessage = error.toString();
-    }
 
-    if (!mounted) return;
-    setState(() {
-      busy = false;
-    });
+      if (!mounted) return;
+      setState(() {
+        busy = false;
+        errorMessage = null;
+        successMessage = restored
+            ? 'Cloud profiles restored successfully on this device.'
+            : 'No cloud backup was found for this account.';
+      });
+
+      if (restored) {
+        _loadCloudStatus();
+      }
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        busy = false;
+        successMessage = null;
+        errorMessage = cloudSync.friendlyError(error);
+      });
+    }
   }
 
   Future<void> _resetPassword() async {
@@ -472,8 +508,8 @@ class _AccountScreenState extends State<AccountScreen> {
           title: const Text('Reset password'),
           content: TextField(
             controller: controller,
-            keyboardType: TextInputType.emailAddress,
             autofocus: true,
+            keyboardType: TextInputType.emailAddress,
             decoration: const InputDecoration(labelText: 'Email'),
           ),
           actions: [
@@ -482,7 +518,8 @@ class _AccountScreenState extends State<AccountScreen> {
               child: const Text('Cancel'),
             ),
             FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
+              onPressed: () =>
+                  Navigator.pop(dialogContext, controller.text.trim()),
               child: const Text('Send Reset Email'),
             ),
           ],
@@ -513,25 +550,22 @@ class _AccountScreenState extends State<AccountScreen> {
     await accounts.signOut();
     if (!mounted) return;
     setState(() {
+      busy = false;
       errorMessage = null;
       successMessage = 'Signed out. Local profiles remain on this device.';
       lastCloudUpdate = null;
     });
   }
 
-  Widget _heroCard({
-    required IconData icon,
-    required String title,
-    required String message,
-  }) {
+  Widget _hero(IconData icon, String title, String message) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(26),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF231719), Color(0xFF151722), Color(0xFF0F1118)],
+          colors: [Color(0xFF241719), Color(0xFF151722), Color(0xFF0F1118)],
         ),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: Colors.white10),
@@ -540,10 +574,13 @@ class _AccountScreenState extends State<AccountScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 54,
-            height: 54,
+            width: 52,
+            height: 52,
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.16),
+              color: Theme.of(context)
+                  .colorScheme
+                  .primary
+                  .withValues(alpha: 0.16),
               borderRadius: BorderRadius.circular(16),
             ),
             child: Icon(icon, color: Theme.of(context).colorScheme.primary),
@@ -555,12 +592,15 @@ class _AccountScreenState extends State<AccountScreen> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w800),
+                  style: const TextStyle(
+                    fontSize: 25,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
                 const SizedBox(height: 7),
                 Text(
                   message,
-                  style: const TextStyle(color: Colors.white60, height: 1.5),
+                  style: const TextStyle(color: Colors.white60, height: 1.45),
                 ),
               ],
             ),
@@ -583,36 +623,24 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
-  Widget _setupRow(String number, String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          CircleAvatar(
-            radius: 14,
-            backgroundColor: Colors.white10,
-            child: Text(number, style: const TextStyle(fontSize: 11)),
-          ),
-          const SizedBox(width: 11),
-          Expanded(child: Text(text, style: const TextStyle(height: 1.4))),
-        ],
-      ),
-    );
-  }
-
   Widget _detailRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 11),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 130,
-            child: Text(label, style: const TextStyle(color: Colors.white38)),
+            width: 125,
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 12, color: Colors.white38),
+            ),
           ),
           Expanded(
-            child: Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
+            child: Text(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),
@@ -627,17 +655,31 @@ class _AccountScreenState extends State<AccountScreen> {
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha: 0.22)),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
       ),
-      child: Text(message),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            isError ? Icons.error_outline_rounded : Icons.check_circle_outline,
+            size: 20,
+            color: color,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(message, style: const TextStyle(height: 1.4)),
+          ),
+        ],
+      ),
     );
   }
 
-  String _formatDateTime(DateTime date) {
-    final local = date.toLocal();
-    final hour = local.hour == 0 ? 12 : (local.hour > 12 ? local.hour - 12 : local.hour);
+  String _formatDateTime(DateTime value) {
+    final local = value.toLocal();
+    final month = local.month.toString().padLeft(2, '0');
+    final day = local.day.toString().padLeft(2, '0');
+    final hour = local.hour.toString().padLeft(2, '0');
     final minute = local.minute.toString().padLeft(2, '0');
-    final period = local.hour >= 12 ? 'PM' : 'AM';
-    return '${local.month}/${local.day}/${local.year} • $hour:$minute $period';
+    return '${local.year}-$month-$day $hour:$minute';
   }
 }
