@@ -194,6 +194,90 @@ class ProfileService {
     await _snapshotBaseDataToProfile(prefs, _activeProfileId!);
   }
 
+  /// Serializes every local profile and its tracking data for cloud backup.
+  Future<Map<String, dynamic>> exportCloudBundle() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    if (_activeProfileId != null) {
+      await _snapshotBaseDataToProfile(prefs, _activeProfileId!);
+    }
+
+    final snapshots = <String, Map<String, String>>{};
+
+    for (final profile in _profiles) {
+      final data = <String, String>{};
+      for (final key in _profileDataKeys) {
+        final value = prefs.getString(_scopedKey(profile.id, key));
+        if (value != null) data[key] = value;
+      }
+      snapshots[profile.id] = data;
+    }
+
+    return {
+      'version': 1,
+      'activeProfileId': _activeProfileId,
+      'profiles': _profiles.map((profile) => profile.toJson()).toList(),
+      'snapshots': snapshots,
+    };
+  }
+
+  /// Replaces the local profile set with a previously exported cloud bundle.
+  Future<void> importCloudBundle(Map<String, dynamic> bundle) async {
+    final rawProfiles = bundle['profiles'];
+    if (rawProfiles is! List || rawProfiles.isEmpty) {
+      throw StateError('No cloud profiles were found for this account.');
+    }
+
+    final importedProfiles = rawProfiles
+        .map(
+          (item) => UserProfile.fromJson(
+            Map<String, dynamic>.from(item as Map),
+          ),
+        )
+        .toList();
+
+    final prefs = await SharedPreferences.getInstance();
+
+    for (final profile in _profiles) {
+      await _removeProfileSnapshot(prefs, profile.id);
+    }
+
+    _profiles
+      ..clear()
+      ..addAll(importedProfiles);
+
+    final requestedActiveId = bundle['activeProfileId']?.toString();
+    final activeExists =
+        _profiles.any((profile) => profile.id == requestedActiveId);
+    _activeProfileId = activeExists ? requestedActiveId : _profiles.first.id;
+
+    final rawSnapshots = bundle['snapshots'];
+    final snapshots = rawSnapshots is Map
+        ? Map<String, dynamic>.from(rawSnapshots)
+        : <String, dynamic>{};
+
+    for (final profile in _profiles) {
+      final rawData = snapshots[profile.id];
+      final data = rawData is Map
+          ? Map<String, dynamic>.from(rawData)
+          : <String, dynamic>{};
+
+      for (final key in _profileDataKeys) {
+        final value = data[key];
+        if (value == null) {
+          await prefs.remove(_scopedKey(profile.id, key));
+        } else {
+          await prefs.setString(_scopedKey(profile.id, key), value.toString());
+        }
+      }
+    }
+
+    await _saveProfiles(prefs);
+    await prefs.setString(_activeProfileKey, _activeProfileId!);
+    await _restoreProfileDataToBase(prefs, _activeProfileId!);
+    await _reloadTrackingServices();
+  }
+
   Future<void> _reloadTrackingServices() async {
     await Future.wait([
       FavoritesService.instance.loadAll(),
