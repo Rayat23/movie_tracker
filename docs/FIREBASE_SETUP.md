@@ -5,6 +5,12 @@ Movie Tracker can run in two modes:
 - **Local-only mode**: no Firebase configuration is supplied. Profiles stay on the current browser/device.
 - **Account + cloud mode**: Firebase configuration is supplied at run/build time. Email/password authentication and Firestore profile backup/restore are enabled.
 
+## Important: Flutter does not need the Firebase CDN script
+
+When Firebase shows the Web SDK setup snippet with `<script type="module">`, do **not** paste that CDN snippet into `web/index.html` for this project. Movie Tracker is a Flutter app and uses the FlutterFire packages (`firebase_core`, `firebase_auth`, and `cloud_firestore`) directly.
+
+Use the values inside Firebase's `firebaseConfig` object as `--dart-define` values when running or building the Flutter app.
+
 ## 1. Create a Firebase project
 
 1. Open Firebase Console and create a project for Movie Tracker.
@@ -18,6 +24,8 @@ In Firebase Console:
 1. Open **Authentication**.
 2. Open **Sign-in method**.
 3. Enable **Email/Password**.
+
+If local web sign-in reports that the domain is not authorized, add `localhost` under **Authentication → Settings → Authorized domains**.
 
 ## 3. Create Firestore
 
@@ -38,7 +46,8 @@ flutter run -d web-server --web-port 8080 `
   --dart-define=FIREBASE_MESSAGING_SENDER_ID=YOUR_SENDER_ID `
   --dart-define=FIREBASE_PROJECT_ID=YOUR_PROJECT_ID `
   --dart-define=FIREBASE_AUTH_DOMAIN=YOUR_PROJECT.firebaseapp.com `
-  --dart-define=FIREBASE_STORAGE_BUCKET=YOUR_PROJECT.firebasestorage.app
+  --dart-define=FIREBASE_STORAGE_BUCKET=YOUR_PROJECT.firebasestorage.app `
+  --dart-define=FIREBASE_MEASUREMENT_ID=YOUR_MEASUREMENT_ID
 ```
 
 For a release web build, use the same values with:
@@ -50,7 +59,8 @@ flutter build web --release `
   --dart-define=FIREBASE_MESSAGING_SENDER_ID=YOUR_SENDER_ID `
   --dart-define=FIREBASE_PROJECT_ID=YOUR_PROJECT_ID `
   --dart-define=FIREBASE_AUTH_DOMAIN=YOUR_PROJECT.firebaseapp.com `
-  --dart-define=FIREBASE_STORAGE_BUCKET=YOUR_PROJECT.firebasestorage.app
+  --dart-define=FIREBASE_STORAGE_BUCKET=YOUR_PROJECT.firebasestorage.app `
+  --dart-define=FIREBASE_MEASUREMENT_ID=YOUR_MEASUREMENT_ID
 ```
 
 Firebase web configuration is visible to browser users by design. **Firestore Security Rules and Authentication are the security boundary**, not hiding the Firebase web API key.
