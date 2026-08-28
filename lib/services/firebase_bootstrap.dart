@@ -1,4 +1,6 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 
 /// Firebase configuration is supplied at run/build time with --dart-define.
 ///
@@ -42,6 +44,17 @@ class FirebaseBootstrap {
         measurementId: measurementId.isEmpty ? null : measurementId,
       ),
     );
+
+    // Firestore's normal WebChannel transport can be buffered indefinitely by
+    // some local proxies, antivirus/network filters, VPNs, and browser setups.
+    // Authentication can still work in that situation while Firestore reads and
+    // writes appear to hang. Force long polling on web to use a more compatible
+    // transport. Firestore settings must be set before the first Firestore call.
+    if (kIsWeb) {
+      FirebaseFirestore.instance.settings = const Settings(
+        webExperimentalForceLongPolling: true,
+      );
+    }
 
     _initialized = true;
   }
