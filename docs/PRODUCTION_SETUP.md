@@ -10,6 +10,7 @@ This production path is designed for **zero-spend operation** and for a public F
 - **CI:** GitHub Actions
 - **Health monitoring:** GitHub Actions every 15 minutes after production is enabled
 - **Recovery:** one automatic redeploy attempt, then one incident issue if recovery fails
+- **Proxy maintenance:** Worker code automatically redeploys after approved `main` changes once the one-time Cloudflare connection is enabled
 
 The production deployment remains disabled until the first launch is explicitly approved.
 
@@ -18,8 +19,8 @@ The production deployment remains disabled until the first launch is explicitly 
 Use the files under `edge/tmdb-proxy/`.
 
 1. Create a free Cloudflare account if one is not already available.
-2. Create/deploy a Worker using `edge/tmdb-proxy/worker.js`.
-3. Configure `ALLOWED_ORIGINS` with:
+2. Create/deploy a Worker using `edge/tmdb-proxy/worker.js` and `edge/tmdb-proxy/wrangler.toml`.
+3. The checked-in Worker configuration allows:
    - `https://rayat23.github.io`
    - `http://localhost:8080` for local testing
 4. Store the TMDB credential as a Worker secret. Never commit it to GitHub.
@@ -28,6 +29,21 @@ Use the files under `edge/tmdb-proxy/`.
 5. Copy the deployed Worker base URL, for example `https://movie-tracker-tmdb.<account>.workers.dev`.
 
 The proxy only permits the TMDB routes currently used by Movie Tracker and caches read responses to reduce upstream requests.
+
+### Optional but recommended: connect Cloudflare to GitHub once
+
+To make future proxy updates automatic, create a Cloudflare API token that can edit Workers and then open **GitHub → Settings → Secrets and variables → Actions**.
+
+Add these **repository secrets**:
+
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
+
+Then add this **repository variable**:
+
+- `EDGE_PROXY_DEPLOY_ENABLED` = `true`
+
+After that one-time setup, changes under `edge/tmdb-proxy/` that reach `main` automatically deploy through `.github/workflows/tmdb_proxy_deploy.yml`. The TMDB credential itself remains stored only as a Cloudflare Worker secret.
 
 ## 2. Configure GitHub repository variables
 
@@ -73,7 +89,8 @@ Once `PRODUCTION_DEPLOY_ENABLED=true`:
 - production health is checked every 15 minutes;
 - transient failures are retried;
 - a persistent failure triggers one safe redeploy of `main`;
-- if production is still unhealthy, one GitHub incident issue is opened/updated for human attention.
+- if production is still unhealthy, one GitHub incident issue is opened/updated for human attention;
+- if `EDGE_PROXY_DEPLOY_ENABLED=true`, approved Worker changes on `main` deploy automatically too.
 
 ## Security and cost guardrails
 
