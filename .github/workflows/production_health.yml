@@ -1,0 +1,75 @@
+name: Production Health
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+
+permissions:
+  contents: read
+  actions: write
+  issues: write
+
+concurrency:
+  group: movie-tracker-production-health
+  cancel-in-progress: true
+
+jobs:
+  health:
+    # This remains dormant until the owner explicitly enables the first
+    # production launch. Once enabled, it checks the hosted site every 15 min.
+    if: ${{ vars.PRODUCTION_DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PRODUCTION_HEALTH_URL: https://rayat23.github.io/movie_tracker/health.json
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Check production health
+        id: first_check
+        continue-on-error: true
+        run: |
+          curl --fail --silent --show-error \
+            --retry 3 --retry-delay 5 --retry-all-errors \
+            "$PRODUCTION_HEALTH_URL" | tee /tmp/health.json
+          grep -q '"status":"ok"' /tmp/health.json
+
+      - name: Trigger safe redeploy after persistent failure
+        if: ${{ steps.first_check.outcome == 'failure' }}
+        run: |
+          echo "Production health failed. Triggering one safe redeploy of main."
+          gh workflow run production_deploy.yml --ref main -f reason=health-recovery
+          sleep 90
+
+      - name: Verify recovery
+        id: recovery_check
+        if: ${{ steps.first_check.outcome == 'failure' }}
+        continue-on-error: true
+        run: |
+          curl --fail --silent --show-error \
+            --retry 3 --retry-delay 5 --retry-all-errors \
+            "$PRODUCTION_HEALTH_URL" | tee /tmp/recovery-health.json
+          grep -q '"status":"ok"' /tmp/recovery-health.json
+
+      - name: Open one incident issue if recovery failed
+        if: >-
+          ${{ steps.first_check.outcome == 'failure' &&
+              steps.recovery_check.outcome == 'failure' }}
+        run: |
+          existing="$(gh issue list \
+            --state open \
+            --search 'Production health check failed in:title' \
+            --json number \
+            --jq '.[0].number // empty')"
+
+          if [ -z "$existing" ]; then
+            gh issue create \
+              --title "Production health check failed" \
+              --body "Automated health monitoring could not reach Movie Tracker production after retries and one safe redeploy attempt. Human review is required. Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          else
+            gh issue comment "$existing" \
+              --body "Production is still unhealthy after an automatic redeploy attempt. Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          fi
+
+          exit 1
