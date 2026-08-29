@@ -40,7 +40,7 @@ class CloudSyncService {
       throw StateError('There are no local profiles to back up.');
     }
 
-    final firestore = FirebaseFirestore.instance;
+    final firestore = FirebaseBootstrap.firestore;
     final userRef = firestore.collection('users').doc(user.uid);
     final profilesRef = userRef.collection('profiles');
     final localIds = profiles
@@ -95,7 +95,7 @@ class CloudSyncService {
       throw StateError('Sign in before restoring profiles.');
     }
 
-    final firestore = FirebaseFirestore.instance;
+    final firestore = FirebaseBootstrap.firestore;
     final userRef = firestore.collection('users').doc(user.uid);
 
     final userSnapshot = await _withTimeout(
@@ -166,7 +166,7 @@ class CloudSyncService {
     if (!isAvailable || user == null) return null;
 
     final snapshot = await _withTimeout(
-      FirebaseFirestore.instance
+      FirebaseBootstrap.firestore
           .collection('users')
           .doc(user.uid)
           .get(const GetOptions(source: Source.server)),
@@ -415,19 +415,19 @@ class CloudSyncService {
   Uri _restDocumentUri(String documentPath) {
     return Uri.parse(
       'https://firestore.googleapis.com/v1/projects/'
-      '${FirebaseBootstrap.projectId}/databases/(default)/documents/$documentPath',
+      '${FirebaseBootstrap.projectId}/databases/${FirebaseBootstrap.databaseId}/documents/$documentPath',
     );
   }
 
   Uri _restCommitUri() {
     return Uri.parse(
       'https://firestore.googleapis.com/v1/projects/'
-      '${FirebaseBootstrap.projectId}/databases/(default)/documents:commit',
+      '${FirebaseBootstrap.projectId}/databases/${FirebaseBootstrap.databaseId}/documents:commit',
     );
   }
 
   String _restDocumentName(String documentPath) {
-    return 'projects/${FirebaseBootstrap.projectId}/databases/(default)/documents/'
+    return 'projects/${FirebaseBootstrap.projectId}/databases/${FirebaseBootstrap.databaseId}/documents/'
         '$documentPath';
   }
 
@@ -495,7 +495,8 @@ class CloudSyncService {
     }
     if (response.statusCode == 404) {
       throw StateError(
-        '$operation returned 404. Firebase said: $message',
+        '$operation returned 404 for Firestore database '
+        '${FirebaseBootstrap.databaseId}. Firebase said: $message',
       );
     }
 
