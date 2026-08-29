@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/movie.dart';
+import 'local_change_service.dart';
 
 class FavoritesService {
   FavoritesService._privateConstructor();
@@ -196,6 +197,7 @@ class FavoritesService {
     );
 
     await prefs.setString(key, encoded);
+    await LocalChangeService.instance.markDirty();
   }
 
   Future<void> toggle(Movie movie) async {
@@ -307,6 +309,7 @@ class FavoritesService {
     );
 
     await prefs.setString(_ratingsKey, jsonEncode(ratingsToSave));
+    await LocalChangeService.instance.markDirty();
   }
 
   Future<void> _saveWatchedDates() async {
@@ -317,6 +320,7 @@ class FavoritesService {
     );
 
     await prefs.setString(_watchedDatesKey, jsonEncode(datesToSave));
+    await LocalChangeService.instance.markDirty();
   }
 
   Future<void> _saveRewatchDates() async {
@@ -330,5 +334,6 @@ class FavoritesService {
     );
 
     await prefs.setString(_rewatchDatesKey, jsonEncode(datesToSave));
+    await LocalChangeService.instance.markDirty();
   }
 }
