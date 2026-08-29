@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'screens/home_screen.dart';
+import 'services/auto_sync_service.dart';
 import 'services/favorites_service.dart';
 import 'services/firebase_bootstrap.dart';
 import 'services/profile_service.dart';
@@ -20,6 +21,10 @@ void main() async {
     FavoritesService.instance.loadAll(),
     SeriesTrackingService.instance.loadAll(),
   ]);
+
+  // Automatic sync is offline-first: local writes never wait for the network.
+  // Pending changes are persisted and retried whenever connectivity returns.
+  await AutoSyncService.instance.initialize();
 
   runApp(const MovieTrackerApp());
 }
