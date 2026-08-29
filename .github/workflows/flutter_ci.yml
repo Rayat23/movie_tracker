@@ -5,14 +5,19 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+  schedule:
+    # Once this workflow is on main, run a no-cost health check every 6 hours.
+    - cron: '17 */6 * * *'
 
 concurrency:
   group: flutter-ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  analyze-and-build-web:
+  analyze-test-build-web:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -38,3 +43,11 @@ jobs:
 
       - name: Build web
         run: flutter build web --release
+
+      - name: Upload verified web build
+        uses: actions/upload-artifact@v4
+        with:
+          name: movie-tracker-web-${{ github.sha }}
+          path: build/web
+          if-no-files-found: error
+          retention-days: 7
