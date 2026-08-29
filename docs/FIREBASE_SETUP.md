@@ -35,6 +35,24 @@ If local web sign-in reports that the domain is not authorized, add `localhost` 
 
 The rules restrict `/users/{uid}` and its `profiles` collection so only that signed-in Firebase user can read or write the data.
 
+### Firestore database ID
+
+The Firebase SDK normally targets the special database ID `(default)`. If your Firebase project already has a named Firestore database, Movie Tracker can use it directly without creating another database.
+
+Pass its ID with:
+
+```text
+--dart-define=FIREBASE_DATABASE_ID=YOUR_DATABASE_ID
+```
+
+For the current Movie Tracker Firebase project, the existing Firestore database ID is `default` (without parentheses), so use:
+
+```text
+--dart-define=FIREBASE_DATABASE_ID=default
+```
+
+This avoids creating another database or changing the billing plan.
+
 ## 4. Run with Firebase configuration
 
 Use your Firebase project's values with `--dart-define`:
@@ -45,6 +63,7 @@ flutter run -d web-server --web-port 8080 `
   --dart-define=FIREBASE_APP_ID=YOUR_APP_ID `
   --dart-define=FIREBASE_MESSAGING_SENDER_ID=YOUR_SENDER_ID `
   --dart-define=FIREBASE_PROJECT_ID=YOUR_PROJECT_ID `
+  --dart-define=FIREBASE_DATABASE_ID=YOUR_DATABASE_ID `
   --dart-define=FIREBASE_AUTH_DOMAIN=YOUR_PROJECT.firebaseapp.com `
   --dart-define=FIREBASE_STORAGE_BUCKET=YOUR_PROJECT.firebasestorage.app `
   --dart-define=FIREBASE_MEASUREMENT_ID=YOUR_MEASUREMENT_ID
@@ -58,6 +77,7 @@ flutter build web --release `
   --dart-define=FIREBASE_APP_ID=YOUR_APP_ID `
   --dart-define=FIREBASE_MESSAGING_SENDER_ID=YOUR_SENDER_ID `
   --dart-define=FIREBASE_PROJECT_ID=YOUR_PROJECT_ID `
+  --dart-define=FIREBASE_DATABASE_ID=YOUR_DATABASE_ID `
   --dart-define=FIREBASE_AUTH_DOMAIN=YOUR_PROJECT.firebaseapp.com `
   --dart-define=FIREBASE_STORAGE_BUCKET=YOUR_PROJECT.firebasestorage.app `
   --dart-define=FIREBASE_MEASUREMENT_ID=YOUR_MEASUREMENT_ID
