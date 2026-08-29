@@ -1,0 +1,9 @@
+name = "movie-tracker-tmdb"
+main = "worker.js"
+compatibility_date = "2026-08-01"
+
+[vars]
+ALLOWED_ORIGINS = "https://rayat23.github.io,http://localhost:8080"
+
+# Credentials are intentionally not stored here.
+# Add TMDB_API_KEY or TMDB_BEARER_TOKEN as a Cloudflare Worker secret.

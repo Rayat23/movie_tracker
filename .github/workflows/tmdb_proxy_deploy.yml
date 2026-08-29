@@ -1,0 +1,38 @@
+name: TMDB Proxy Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'edge/tmdb-proxy/**'
+      - '.github/workflows/tmdb_proxy_deploy.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: movie-tracker-tmdb-proxy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    # Remains dormant until the one-time Cloudflare setup is complete.
+    if: ${{ vars.EDGE_PROXY_DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate Worker module syntax
+        run: node --input-type=module --check < edge/tmdb-proxy/worker.js
+
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: edge/tmdb-proxy
+          command: deploy

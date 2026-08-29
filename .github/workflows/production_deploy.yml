@@ -1,0 +1,102 @@
+name: Production Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: Why this deployment is being started
+        required: false
+        default: manual
+  workflow_run:
+    workflows: ["Flutter CI"]
+    types: [completed]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: movie-tracker-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    # The first launch stays disabled until the owner explicitly turns on the
+    # PRODUCTION_DEPLOY_ENABLED repository variable. After that, a successful
+    # push-triggered main CI run deploys automatically. Scheduled CI builds do
+    # not cause needless production redeployments.
+    if: >-
+      ${{ vars.PRODUCTION_DEPLOY_ENABLED == 'true' &&
+          (github.event_name == 'workflow_dispatch' ||
+           (github.event.workflow_run.conclusion == 'success' &&
+            github.event.workflow_run.head_branch == 'main' &&
+            github.event.workflow_run.event == 'push')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Validate production configuration
+        env:
+          TMDB_PROXY_BASE_URL: ${{ vars.TMDB_PROXY_BASE_URL }}
+        run: |
+          if [ -z "$TMDB_PROXY_BASE_URL" ]; then
+            echo "TMDB_PROXY_BASE_URL is required before production deployment."
+            echo "Movie Tracker will not publish a TMDB credential inside the browser bundle."
+            exit 1
+          fi
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Create safe API config
+        run: cp lib/config/api_config.example.dart lib/config/api_config.dart
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build production web
+        env:
+          TMDB_PROXY_BASE_URL: ${{ vars.TMDB_PROXY_BASE_URL }}
+        run: |
+          flutter build web --release \
+            --base-href /movie_tracker/ \
+            --dart-define=TMDB_PROXY_BASE_URL="$TMDB_PROXY_BASE_URL" \
+            --dart-define=FIREBASE_API_KEY=AIzaSyBzasOgjkhkCt2emkAWH6RsMINuFIF2Vnw \
+            --dart-define=FIREBASE_APP_ID=1:583275724801:web:8c8864729a6e63d9b1c000 \
+            --dart-define=FIREBASE_MESSAGING_SENDER_ID=583275724801 \
+            --dart-define=FIREBASE_PROJECT_ID=movie-tracker-ae5d1 \
+            --dart-define=FIREBASE_DATABASE_ID=default \
+            --dart-define=FIREBASE_AUTH_DOMAIN=movie-tracker-ae5d1.firebaseapp.com \
+            --dart-define=FIREBASE_STORAGE_BUCKET=movie-tracker-ae5d1.firebasestorage.app \
+            --dart-define=FIREBASE_MEASUREMENT_ID=G-FRXNDTQWJE
+
+      - name: Add production health marker
+        run: |
+          printf '{"status":"ok","commit":"%s","builtAt":"%s"}\n' \
+            "${GITHUB_SHA}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            > build/web/health.json
+          touch build/web/.nojekyll
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: build/web
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

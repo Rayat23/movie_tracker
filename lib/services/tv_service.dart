@@ -1,32 +1,17 @@
-import 'dart:convert';
-
-import 'package:http/http.dart' as http;
-
-import '../config/api_config.dart';
 import '../models/episode.dart';
 import '../models/season.dart';
 import '../models/tv_show.dart';
+import 'tmdb_client.dart';
 
 class TvService {
   Future<Map<String, dynamic>> _getJson(
     String endpoint, {
     Map<String, String> queryParameters = const {},
-  }) async {
-    final url = Uri.parse('${ApiConfig.baseUrl}$endpoint').replace(
-      queryParameters: {
-        'api_key': ApiConfig.apiKey,
-        'language': 'en-US',
-        ...queryParameters,
-      },
+  }) {
+    return TmdbClient.getJson(
+      endpoint,
+      queryParameters: queryParameters,
     );
-
-    final response = await http.get(url);
-
-    if (response.statusCode != 200) {
-      throw Exception('TMDB error ${response.statusCode}: ${response.body}');
-    }
-
-    return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
   Future<List<TvShow>> fetchTrendingTvShows() async {

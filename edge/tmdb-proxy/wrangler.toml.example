@@ -1,0 +1,13 @@
+name = "movie-tracker-tmdb"
+main = "worker.js"
+compatibility_date = "2026-08-01"
+
+# Keep the browser origins comma-separated. Add a custom domain later if needed.
+[vars]
+ALLOWED_ORIGINS = "https://rayat23.github.io,http://localhost:8080"
+
+# NEVER put the TMDB credential in this file.
+# Configure one of these as a Worker secret instead:
+#   wrangler secret put TMDB_API_KEY
+# or
+#   wrangler secret put TMDB_BEARER_TOKEN

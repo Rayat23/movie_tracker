@@ -1,47 +1,19 @@
-import 'dart:convert';
-
-import 'package:http/http.dart' as http;
-
-import '../config/api_config.dart';
 import '../models/movie.dart';
+import 'tmdb_client.dart';
 
 class MovieService {
   Future<List<Movie>> _fetchMovies(String endpoint) async {
-    final url = Uri.parse(
-      '${ApiConfig.baseUrl}$endpoint'
-      '?api_key=${ApiConfig.apiKey}'
-      '&language=en-US',
-    );
+    final data = await TmdbClient.getJson(endpoint);
+    final List<dynamic> results = data['results'] ?? [];
 
-    final response = await http.get(url);
-
-    if (response.statusCode == 200) {
-      final Map<String, dynamic> data = jsonDecode(response.body);
-      final List<dynamic> results = data['results'] ?? [];
-
-      return results
-          .map((movieJson) => Movie.fromJson(movieJson as Map<String, dynamic>))
-          .toList();
-    }
-
-    throw Exception('TMDB error ${response.statusCode}: ${response.body}');
+    return results
+        .map((movieJson) => Movie.fromJson(movieJson as Map<String, dynamic>))
+        .toList();
   }
 
   Future<Movie> fetchMovieDetails(int movieId) async {
-    final url = Uri.parse(
-      '${ApiConfig.baseUrl}/movie/$movieId'
-      '?api_key=${ApiConfig.apiKey}'
-      '&language=en-US',
-    );
-
-    final response = await http.get(url);
-
-    if (response.statusCode == 200) {
-      final Map<String, dynamic> data = jsonDecode(response.body);
-      return Movie.fromJson(data);
-    }
-
-    throw Exception('TMDB error ${response.statusCode}: ${response.body}');
+    final data = await TmdbClient.getJson('/movie/$movieId');
+    return Movie.fromJson(data);
   }
 
   Future<List<Movie>> fetchTrendingMovies() {
@@ -57,24 +29,14 @@ class MovieService {
   }
 
   Future<List<Movie>> searchMovies(String query) async {
-    final url = Uri.parse(
-      '${ApiConfig.baseUrl}/search/movie'
-      '?api_key=${ApiConfig.apiKey}'
-      '&language=en-US'
-      '&query=${Uri.encodeComponent(query)}',
+    final data = await TmdbClient.getJson(
+      '/search/movie',
+      queryParameters: {'query': query},
     );
+    final List<dynamic> results = data['results'] ?? [];
 
-    final response = await http.get(url);
-
-    if (response.statusCode == 200) {
-      final Map<String, dynamic> data = jsonDecode(response.body);
-      final List<dynamic> results = data['results'] ?? [];
-
-      return results
-          .map((movieJson) => Movie.fromJson(movieJson as Map<String, dynamic>))
-          .toList();
-    }
-
-    throw Exception('TMDB error ${response.statusCode}: ${response.body}');
+    return results
+        .map((movieJson) => Movie.fromJson(movieJson as Map<String, dynamic>))
+        .toList();
   }
 }
