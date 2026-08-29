@@ -20,6 +20,15 @@ class FirebaseBootstrap {
   static const String measurementId =
       String.fromEnvironment('FIREBASE_MEASUREMENT_ID');
 
+  /// Firestore defaults to the special `(default)` database, but Firebase also
+  /// supports named databases. The current Movie Tracker Firebase project has a
+  /// named database whose ID is `default`, so pass
+  /// --dart-define=FIREBASE_DATABASE_ID=default when running that project.
+  static const String databaseId = String.fromEnvironment(
+    'FIREBASE_DATABASE_ID',
+    defaultValue: '(default)',
+  );
+
   static bool _initialized = false;
 
   static bool get isConfigured =>
@@ -29,6 +38,11 @@ class FirebaseBootstrap {
       projectId.isNotEmpty;
 
   static bool get isInitialized => _initialized;
+
+  static FirebaseFirestore get firestore => FirebaseFirestore.instanceFor(
+        app: Firebase.app(),
+        databaseId: databaseId,
+      );
 
   static Future<void> initialize() async {
     if (!isConfigured || _initialized) return;
@@ -51,7 +65,7 @@ class FirebaseBootstrap {
     // writes appear to hang. Force long polling on web to use a more compatible
     // transport. Firestore settings must be set before the first Firestore call.
     if (kIsWeb) {
-      FirebaseFirestore.instance.settings = const Settings(
+      firestore.settings = const Settings(
         webExperimentalForceLongPolling: true,
       );
     }
