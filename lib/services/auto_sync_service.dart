@@ -60,6 +60,9 @@ class AutoSyncService {
   }
 
   Future<void> _handleSignedIn() async {
+    final user = _accounts.currentUser;
+    if (user == null) return;
+
     if (_changes.hasPendingChanges) {
       await syncIfNeeded();
       return;
@@ -71,7 +74,10 @@ class AutoSyncService {
     try {
       final cloudRevision = await _cloud.lastCloudUpdate();
       if (cloudRevision != null) {
-        await _changes.adoptCloudBaseline(cloudRevision);
+        await _changes.adoptCloudBaseline(
+          cloudRevision,
+          userId: user.uid,
+        );
         _lastSuccessfulSync = cloudRevision;
       }
     } catch (_) {
@@ -80,9 +86,15 @@ class AutoSyncService {
     }
   }
 
+  Future<void> queueCurrentState() async {
+    await _changes.markDirty();
+  }
+
   Future<void> syncIfNeeded() async {
     if (!_initialized) await initialize();
-    if (_syncing || !_changes.hasPendingChanges || !_accounts.isSignedIn) {
+
+    final user = _accounts.currentUser;
+    if (_syncing || !_changes.hasPendingChanges || user == null) {
       return;
     }
     if (_conflictDetected) return;
@@ -92,7 +104,7 @@ class AutoSyncService {
 
     try {
       final cloudRevision = await _cloud.lastCloudUpdate();
-      final baseline = _changes.cloudBaseline;
+      final baseline = _changes.cloudBaselineForUser(user.uid);
 
       if (_isNewerThanBaseline(cloudRevision, baseline)) {
         _conflictDetected = true;
@@ -111,7 +123,10 @@ class AutoSyncService {
       await _cloud.uploadAllProfiles();
       final confirmedRevision =
           await _cloud.lastCloudUpdate() ?? DateTime.now().toUtc();
-      await _changes.markSynced(confirmedRevision);
+      await _changes.markSynced(
+        confirmedRevision,
+        userId: user.uid,
+      );
 
       _lastSuccessfulSync = confirmedRevision;
       _conflictDetected = false;
@@ -126,16 +141,28 @@ class AutoSyncService {
   }
 
   Future<void> confirmManualBackup(DateTime? cloudRevision) async {
+    final user = _accounts.currentUser;
+    if (user == null) return;
+
     final revision = cloudRevision ?? DateTime.now().toUtc();
-    await _changes.markSynced(revision);
+    await _changes.markSynced(
+      revision,
+      userId: user.uid,
+    );
     _lastSuccessfulSync = revision;
     _conflictDetected = false;
     _lastError = null;
   }
 
   Future<void> confirmCloudRestore(DateTime? cloudRevision) async {
+    final user = _accounts.currentUser;
+    if (user == null) return;
+
     final revision = cloudRevision ?? DateTime.now().toUtc();
-    await _changes.markSynced(revision);
+    await _changes.markSynced(
+      revision,
+      userId: user.uid,
+    );
     _lastSuccessfulSync = revision;
     _conflictDetected = false;
     _lastError = null;
