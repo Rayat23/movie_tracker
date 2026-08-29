@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/account_service.dart';
+import '../services/auto_sync_service.dart';
 import '../services/cloud_sync_service.dart';
 import '../services/firebase_bootstrap.dart';
 import '../services/profile_service.dart';
@@ -15,6 +16,7 @@ class AccountScreen extends StatefulWidget {
 class _AccountScreenState extends State<AccountScreen> {
   final AccountService accounts = AccountService.instance;
   final CloudSyncService cloudSync = CloudSyncService.instance;
+  final AutoSyncService autoSync = AutoSyncService.instance;
 
   final TextEditingController nameController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
@@ -105,7 +107,7 @@ class _AccountScreenState extends State<AccountScreen> {
               ? 'Create your Movie Tracker account'
               : 'Sign in to Movie Tracker',
           createMode
-              ? 'Create the account first. After you are signed in, use the cloud backup button to upload your local profiles.'
+              ? 'Create the account and Movie Tracker will queue your current profiles for cloud sync automatically.'
               : 'Sign in to access profile backups connected to your account.',
         ),
         const SizedBox(height: 18),
@@ -293,6 +295,7 @@ class _AccountScreenState extends State<AccountScreen> {
                 ? 'No confirmed cloud backup yet'
                 : _formatDateTime(lastCloudUpdate!),
           ),
+          _detailRow('Automatic sync', _automaticSyncLabel()),
           const SizedBox(height: 18),
           OutlinedButton.icon(
             onPressed: busy ? null : _signOut,
@@ -321,7 +324,7 @@ class _AccountScreenState extends State<AccountScreen> {
           ),
           const SizedBox(height: 12),
           const Text(
-            'Back up every local profile to this account, or restore the latest profile set stored in Firestore.',
+            'Movie Tracker now saves locally first and automatically queues cloud sync. If the network is unavailable, changes stay on this device and retry later.',
             style: TextStyle(color: Colors.white60, height: 1.45),
           ),
           const SizedBox(height: 18),
@@ -336,7 +339,7 @@ class _AccountScreenState extends State<AccountScreen> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.cloud_upload_outlined),
-              label: Text(busy ? 'Working...' : 'Back Up This Device'),
+              label: Text(busy ? 'Working...' : 'Back Up Now'),
             ),
           ),
           const SizedBox(height: 10),
@@ -348,14 +351,33 @@ class _AccountScreenState extends State<AccountScreen> {
               label: const Text('Restore From Cloud'),
             ),
           ),
-          const SizedBox(height: 12),
-          const Text(
-            'Cloud operations now stop with a readable error instead of loading forever if Firestore cannot respond.',
-            style: TextStyle(fontSize: 12, color: Colors.white38, height: 1.4),
-          ),
+          if (autoSync.conflictDetected && autoSync.lastError != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              autoSync.lastError!,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Colors.orangeAccent,
+                height: 1.4,
+              ),
+            ),
+          ] else ...[
+            const SizedBox(height: 12),
+            const Text(
+              'Automatic sync never waits before saving locally. Conflicting newer cloud data pauses automatic upload instead of silently overwriting it.',
+              style: TextStyle(fontSize: 12, color: Colors.white38, height: 1.4),
+            ),
+          ],
         ],
       ),
     );
+  }
+
+  String _automaticSyncLabel() {
+    if (autoSync.conflictDetected) return 'Paused — conflict needs review';
+    if (autoSync.isSyncing) return 'Syncing now';
+    if (autoSync.hasPendingChanges) return 'Pending — retries automatically';
+    return 'Active — all local changes queued automatically';
   }
 
   Future<void> _submitAuth() async {
@@ -384,13 +406,14 @@ class _AccountScreenState extends State<AccountScreen> {
           email: email,
           password: password,
         );
+        await autoSync.queueCurrentState();
         passwordController.clear();
 
         if (!mounted) return;
         setState(() {
           busy = false;
           successMessage =
-              'Account created and signed in. Use “Back Up This Device” to upload your profiles.';
+              'Account created and signed in. Your local profiles are queued for automatic cloud sync.';
         });
         _loadCloudStatus();
         return;
@@ -402,7 +425,7 @@ class _AccountScreenState extends State<AccountScreen> {
       if (!mounted) return;
       setState(() {
         busy = false;
-        successMessage = 'Signed in successfully.';
+        successMessage = 'Signed in successfully. Automatic sync is active.';
       });
       _loadCloudStatus();
     } catch (error) {
@@ -424,6 +447,7 @@ class _AccountScreenState extends State<AccountScreen> {
     try {
       await cloudSync.uploadAllProfiles();
       final updated = await cloudSync.lastCloudUpdate();
+      await autoSync.confirmManualBackup(updated);
 
       if (!mounted) return;
       setState(() {
@@ -476,19 +500,20 @@ class _AccountScreenState extends State<AccountScreen> {
 
     try {
       final restored = await cloudSync.downloadCloudProfiles();
+      final updated = restored ? await cloudSync.lastCloudUpdate() : null;
+      if (restored) {
+        await autoSync.confirmCloudRestore(updated);
+      }
 
       if (!mounted) return;
       setState(() {
         busy = false;
+        lastCloudUpdate = updated ?? lastCloudUpdate;
         errorMessage = null;
         successMessage = restored
             ? 'Cloud profiles restored successfully on this device.'
             : 'No cloud backup was found for this account.';
       });
-
-      if (restored) {
-        _loadCloudStatus();
-      }
     } catch (error) {
       if (!mounted) return;
       setState(() {
