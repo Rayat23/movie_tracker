@@ -1,6 +1,10 @@
 {
+  "id": ".",
   "name": "Movie Tracker",
   "short_name": "Movie Tracker",
+  "lang": "en-US",
+  "dir": "ltr",
+  "categories": ["entertainment", "lifestyle"],
   "start_url": ".",
   "scope": ".",
   "display": "standalone",
