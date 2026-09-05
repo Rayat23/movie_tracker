@@ -1,0 +1,215 @@
+name: Lead Intake Automation
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  organize:
+    if: startsWith(github.event.issue.title, '[Project inquiry]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Classify inquiry and prepare initial scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+
+          with open(os.environ['GITHUB_EVENT_PATH'], encoding='utf-8') as handle:
+              event = json.load(handle)
+
+          issue = event['issue']
+          body = issue.get('body') or ''
+          issue_number = str(issue['number'])
+          repo = os.environ['REPO']
+
+          def extract(label):
+              pattern = rf'^### {re.escape(label)}\s*\n(.*?)(?=^### |\Z)'
+              match = re.search(pattern, body, flags=re.MULTILINE | re.DOTALL)
+              if not match:
+                  return ''
+              value = match.group(1).strip()
+              if value in {'_No response_', 'No response'}:
+                  return ''
+              return value
+
+          sensitive_patterns = [
+              re.compile(
+                  r'(?i)\b(api[_ -]?key|access[_ -]?token|refresh[_ -]?token|token|secret|password|passwd)\b'
+                  r'\s*[:=]\s*[^\s,;]+',
+              ),
+              re.compile(r'\bsk-[A-Za-z0-9_-]{16,}\b'),
+              re.compile(r'\bAIza[0-9A-Za-z_-]{20,}\b'),
+              re.compile(r'(?i)\bBearer\s+[A-Za-z0-9._~+/-]{16,}=*\b'),
+          ]
+
+          redaction_text = '[REDACTED — remove sensitive value from the public issue]'
+
+          def sanitize(value):
+              cleaned = value
+              detected = False
+              for pattern in sensitive_patterns:
+                  cleaned, count = pattern.subn(redaction_text, cleaned)
+                  detected = detected or count > 0
+              return cleaned, detected
+
+          def compact(value, limit=500):
+              value = re.sub(r'\n{3,}', '\n\n', value.strip())
+              if len(value) <= limit:
+                  return value
+              return value[: limit - 1].rstrip() + '…'
+
+          project_type = extract('What do you want built?')
+          problem_raw = extract('What problem should this solve?')
+          features_raw = extract('What are the must-have features?')
+          budget = extract('Budget range')
+          timing = extract('When would you ideally like a first usable version?')
+          existing_tools_raw = extract('Existing tools or systems')
+
+          problem, problem_sensitive = sanitize(problem_raw)
+          features, features_sensitive = sanitize(features_raw)
+          existing_tools, tools_sensitive = sanitize(existing_tools_raw)
+          sensitive_detected = (
+              problem_sensitive or features_sensitive or tools_sensitive
+          )
+
+          type_map = {
+              'Website or landing page': ('lead:website', '0366d6'),
+              'Web app or MVP': ('lead:web-app', '5319e7'),
+              'Dashboard or tracker': ('lead:dashboard', '1d76db'),
+              'AI automation or workflow': ('lead:ai-automation', '8250df'),
+              'Internal business tool': ('lead:internal-tool', '0e8a16'),
+              'Not sure yet': ('lead:unsure', '6a737d'),
+          }
+
+          budget_map = {
+              'I need advice first': ('lead:budget-advice', 'd4c5f9'),
+              'Under $500': ('lead:budget-under-500', 'bfdadc'),
+              '$500–$1,500': ('lead:budget-500-1500', 'bfe5bf'),
+              '$1,500–$5,000': ('lead:budget-1500-5000', 'fbca04'),
+              '$5,000+': ('lead:budget-5000-plus', 'f9d0c4'),
+          }
+
+          labels = [('lead:new', 'e53935', 'New service inquiry awaiting owner review')]
+          if project_type in type_map:
+              label, color = type_map[project_type]
+              labels.append((label, color, f'Inquiry type: {project_type}'))
+          if budget in budget_map:
+              label, color = budget_map[budget]
+              labels.append((label, color, f'Inquiry budget: {budget}'))
+          if timing in {'As soon as reasonably possible', 'Within 1–2 weeks'}:
+              labels.append(('lead:fast-timeline', 'ff9800', 'Inquiry requests a fast first usable version'))
+          if sensitive_detected:
+              labels.append((
+                  'needs-security-review',
+                  'b60205',
+                  'Public issue may contain a credential or sensitive secret that should be removed',
+              ))
+
+          for name, color, description in labels:
+              subprocess.run(
+                  ['gh', 'label', 'create', name, '--repo', repo, '--color', color,
+                   '--description', description, '--force'],
+                  check=True,
+              )
+
+          edit_args = ['gh', 'issue', 'edit', issue_number, '--repo', repo]
+          for name, _, _ in labels:
+              edit_args += ['--add-label', name]
+          subprocess.run(edit_args, check=True)
+
+          followups = {
+              'Website or landing page': [
+                  'Who is the main audience and what action should visitors take?',
+                  'Do you already have brand assets, copy, images, and a domain?',
+                  'Which pages are required for the first version?',
+              ],
+              'Web app or MVP': [
+                  'Who are the user types and does the first version need sign-in?',
+                  'What is the single most important workflow the MVP must complete?',
+                  'Which external services or APIs must connect to it?',
+              ],
+              'Dashboard or tracker': [
+                  'Where does the data come from today?',
+                  'Who needs to view or edit the dashboard?',
+                  'Which 3–5 metrics or actions matter most on the first screen?',
+              ],
+              'AI automation or workflow': [
+                  'What starts the workflow and what final output should it produce?',
+                  'Which tools/accounts are involved, without sharing credentials here?',
+                  'Which decisions must still require a human approval step?',
+              ],
+              'Internal business tool': [
+                  'Who inside the business will use the tool?',
+                  'What manual process should it replace first?',
+                  'Does it need imports, exports, roles, or approval steps?',
+              ],
+              'Not sure yet': [
+                  'What result would make this project successful?',
+                  'How is the task handled today?',
+                  'What part currently takes the most time or causes the most errors?',
+              ],
+          }.get(project_type, [
+              'Who will use the first version?',
+              'What is the most important outcome it must deliver?',
+              'What existing tools or systems must it work with?',
+          ])
+
+          sections = [
+              '<!-- movie-tracker-lead-intake -->',
+              'Thanks — your project inquiry has been received and automatically organized for an initial review.',
+          ]
+
+          if sensitive_detected:
+              sections += [
+                  '',
+                  '### ⚠️ Security cleanup needed',
+                  'A value that looks like a password, API key, access token, bearer token, or secret was detected in the information you submitted. The automated summary below has redacted the detected value, but **the original public issue text may still contain it**.',
+                  '',
+                  '**Please edit the original issue now and remove the sensitive value. If it was a real credential, rotate/revoke it with the provider. Do not paste a replacement credential into this issue.**',
+              ]
+
+          sections += [
+              '',
+              '### Intake summary',
+              f'- **Project type:** {project_type or "Not provided"}',
+              f'- **Budget range:** {budget or "Not provided"}',
+              f'- **Requested timing:** {timing or "Not provided"}',
+              '',
+              '### Initial scope draft',
+              f'**Problem to solve**\n\n{compact(problem) or "Not provided"}',
+              '',
+              f'**First-version priorities**\n\n{compact(features, 900) or "Not provided"}',
+          ]
+
+          if existing_tools:
+              sections += ['', f'**Existing tools/systems**\n\n{compact(existing_tools, 600)}']
+
+          sections += [
+              '',
+              '### Questions before any quote or schedule',
+          ]
+          sections.extend(f'- {item}' for item in followups)
+          sections += [
+              '',
+              '> This is an automated, non-binding intake summary. It is **not** a quote, contract, payment request, acceptance of work, or guaranteed deadline. Do not post passwords, API keys, tokens, financial details, or other sensitive information in this public issue.',
+          ]
+
+          comment = '\n'.join(sections)
+          subprocess.run(
+              ['gh', 'issue', 'comment', issue_number, '--repo', repo, '--body', comment],
+              check=True,
+          )
+          PY

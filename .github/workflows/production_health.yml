@@ -2,6 +2,9 @@ name: Production Health
 
 on:
   workflow_dispatch:
+  workflow_run:
+    workflows: ["Production Deploy"]
+    types: [completed]
   schedule:
     - cron: '7,22,37,52 * * * *'
 
@@ -16,13 +19,19 @@ concurrency:
 
 jobs:
   health:
-    # This remains dormant until the owner explicitly enables the first
-    # production launch. Once enabled, it checks the hosted site every 15 min.
-    if: ${{ vars.PRODUCTION_DEPLOY_ENABLED == 'true' }}
+    # Production is checked every 15 minutes and immediately after a successful
+    # automatic deployment. Health-recovery/manual deployments do not trigger a
+    # second health run, preventing a persistent outage from causing a loop.
+    if: >-
+      ${{ vars.PRODUCTION_DEPLOY_ENABLED == 'true' &&
+          (github.event_name != 'workflow_run' ||
+           (github.event.workflow_run.conclusion == 'success' &&
+            github.event.workflow_run.event != 'workflow_dispatch')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:
       PRODUCTION_HEALTH_URL: https://rayat23.github.io/movie_tracker/health.json
+      SERVICES_URL: https://rayat23.github.io/movie_tracker/services.html
       TMDB_PROXY_BASE_URL: ${{ vars.TMDB_PROXY_BASE_URL }}
       GH_TOKEN: ${{ github.token }}
 
@@ -92,7 +101,15 @@ jobs:
 
           exit 1
 
-      - name: Check TMDB proxy and credential
+      - name: Check public services funnel
+        run: |
+          curl --fail --silent --show-error \
+            --retry 2 --retry-delay 5 --retry-all-errors \
+            "$SERVICES_URL" > /tmp/services.html
+          grep -q 'project inquiry' /tmp/services.html
+          grep -q 'Movie Tracker' /tmp/services.html
+
+      - name: Check TMDB movie and TV proxy
         id: proxy_check
         continue-on-error: true
         env:
@@ -101,16 +118,29 @@ jobs:
           curl --fail --silent --show-error \
             --retry 2 --retry-delay 5 --retry-all-errors \
             "$PROXY_BASE_URL/trending/movie/day?language=en-US" \
-            > /tmp/tmdb-proxy.json
+            > /tmp/tmdb-movie-proxy.json
+
+          curl --fail --silent --show-error \
+            --retry 2 --retry-delay 5 --retry-all-errors \
+            "$PROXY_BASE_URL/trending/tv/day?language=en-US" \
+            > /tmp/tmdb-tv-proxy.json
 
           python - <<'PY'
           import json
-          with open('/tmp/tmdb-proxy.json', encoding='utf-8') as handle:
-              data = json.load(handle)
-          results = data.get('results')
-          if not isinstance(results, list):
-              raise SystemExit('TMDB proxy response did not contain a results list.')
-          print(f'TMDB proxy healthy with {len(results)} results.')
+
+          checks = [
+              ('movie', '/tmp/tmdb-movie-proxy.json'),
+              ('TV', '/tmp/tmdb-tv-proxy.json'),
+          ]
+          for label, path in checks:
+              with open(path, encoding='utf-8') as handle:
+                  data = json.load(handle)
+              results = data.get('results')
+              if not isinstance(results, list):
+                  raise SystemExit(
+                      f'TMDB {label} proxy response did not contain a results list.'
+                  )
+              print(f'TMDB {label} proxy healthy with {len(results)} results.')
           PY
 
       - name: Redeploy TMDB proxy after persistent proxy failure
@@ -130,16 +160,29 @@ jobs:
           curl --fail --silent --show-error \
             --retry 2 --retry-delay 5 --retry-all-errors \
             "$PROXY_BASE_URL/trending/movie/day?language=en-US" \
-            > /tmp/tmdb-proxy-recovery.json
+            > /tmp/tmdb-movie-proxy-recovery.json
+
+          curl --fail --silent --show-error \
+            --retry 2 --retry-delay 5 --retry-all-errors \
+            "$PROXY_BASE_URL/trending/tv/day?language=en-US" \
+            > /tmp/tmdb-tv-proxy-recovery.json
 
           python - <<'PY'
           import json
-          with open('/tmp/tmdb-proxy-recovery.json', encoding='utf-8') as handle:
-              data = json.load(handle)
-          results = data.get('results')
-          if not isinstance(results, list):
-              raise SystemExit('TMDB proxy recovery response did not contain a results list.')
-          print(f'TMDB proxy recovered with {len(results)} results.')
+
+          checks = [
+              ('movie', '/tmp/tmdb-movie-proxy-recovery.json'),
+              ('TV', '/tmp/tmdb-tv-proxy-recovery.json'),
+          ]
+          for label, path in checks:
+              with open(path, encoding='utf-8') as handle:
+                  data = json.load(handle)
+              results = data.get('results')
+              if not isinstance(results, list):
+                  raise SystemExit(
+                      f'TMDB {label} proxy recovery response did not contain a results list.'
+                  )
+              print(f'TMDB {label} proxy recovered with {len(results)} results.')
           PY
 
       - name: Open one TMDB proxy incident if recovery failed
@@ -156,7 +199,7 @@ jobs:
           if [ -z "$existing" ]; then
             gh issue create \
               --title "TMDB proxy health check failed" \
-              --body "The public TMDB proxy did not return a valid TMDB results payload after retries and one safe Worker redeploy. Check the Worker deployment and confirm that `TMDB_API_KEY` or `TMDB_BEARER_TOKEN` exists as a Cloudflare Worker secret. Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+              --body "The public TMDB movie/TV proxy did not return valid results payloads after retries and one safe Worker redeploy. Check the Worker deployment and confirm that `TMDB_API_KEY` or `TMDB_BEARER_TOKEN` exists as a Cloudflare Worker secret. Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           else
             gh issue comment "$existing" \
               --body "TMDB proxy is still unhealthy after an automatic Worker redeploy attempt. Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
