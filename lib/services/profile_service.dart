@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_profile.dart';
 import 'favorites_service.dart';
 import 'series_tracking_service.dart';
+import 'sync_bootstrap_policy.dart';
 
 class ProfileService {
   ProfileService._privateConstructor();
@@ -192,6 +193,38 @@ class ProfileService {
 
     final prefs = await SharedPreferences.getInstance();
     await _snapshotBaseDataToProfile(prefs, _activeProfileId!);
+  }
+
+  /// Returns false only for the untouched generated local shell: one default
+  /// "My Profile", default avatar, and no non-empty movie/TV tracking state.
+  ///
+  /// This lets automatic cloud bootstrap replace a genuinely clean browser
+  /// while treating any customized profile/library as data that must be kept.
+  Future<bool> hasMeaningfulLocalState() async {
+    if (_profiles.isEmpty) return false;
+
+    final prefs = await SharedPreferences.getInstance();
+    if (_activeProfileId != null) {
+      await _snapshotBaseDataToProfile(prefs, _activeProfileId!);
+    }
+
+    if (_profiles.length != 1) return true;
+
+    final profile = _profiles.single;
+    if (profile.name.trim() != 'My Profile' || profile.avatarIndex != 0) {
+      return true;
+    }
+
+    for (final key in _profileDataKeys) {
+      final scopedValue = prefs.getString(_scopedKey(profile.id, key));
+      final baseValue = prefs.getString(key);
+      if (SyncBootstrapPolicy.isMeaningfulTrackingValue(scopedValue) ||
+          SyncBootstrapPolicy.isMeaningfulTrackingValue(baseValue)) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /// Serializes every local profile and its tracking data for cloud backup.
