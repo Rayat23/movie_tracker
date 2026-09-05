@@ -3,6 +3,8 @@ import 'dart:async';
 import 'account_service.dart';
 import 'cloud_sync_service.dart';
 import 'local_change_service.dart';
+import 'profile_service.dart';
+import 'sync_bootstrap_policy.dart';
 
 class AutoSyncService {
   AutoSyncService._();
@@ -15,16 +17,18 @@ class AutoSyncService {
   final AccountService _accounts = AccountService.instance;
   final CloudSyncService _cloud = CloudSyncService.instance;
   final LocalChangeService _changes = LocalChangeService.instance;
+  final ProfileService _profiles = ProfileService.instance;
 
   Timer? _retryTimer;
   StreamSubscription<dynamic>? _authSubscription;
   bool _syncing = false;
+  bool _bootstrapping = false;
   bool _initialized = false;
   bool _conflictDetected = false;
   String? _lastError;
   DateTime? _lastSuccessfulSync;
 
-  bool get isSyncing => _syncing;
+  bool get isSyncing => _syncing || _bootstrapping;
   bool get hasPendingChanges => _changes.hasPendingChanges;
   bool get conflictDetected => _conflictDetected;
   String? get lastError => _lastError;
@@ -61,28 +65,89 @@ class AutoSyncService {
 
   Future<void> _handleSignedIn() async {
     final user = _accounts.currentUser;
-    if (user == null) return;
+    if (user == null || _bootstrapping) return;
 
-    if (_changes.hasPendingChanges) {
-      await syncIfNeeded();
-      return;
-    }
+    _bootstrapping = true;
+    _lastError = null;
 
-    // When there are no unsynced local edits, remember the current cloud
-    // revision as the safe baseline for future conflict checks. This does not
-    // replace local data or silently restore anything.
     try {
-      final cloudRevision = await _cloud.lastCloudUpdate();
-      if (cloudRevision != null) {
-        await _changes.adoptCloudBaseline(
-          cloudRevision,
-          userId: user.uid,
-        );
-        _lastSuccessfulSync = cloudRevision;
+      if (_changes.hasPendingChanges) {
+        // Existing unsynced local edits are handled by the normal push path,
+        // which already checks cloud revisions before uploading.
+        _bootstrapping = false;
+        await syncIfNeeded();
+        return;
       }
-    } catch (_) {
-      // A baseline lookup is best-effort. Local tracking must remain usable
-      // even when the network is unavailable.
+
+      final cloudRevision = await _cloud.lastCloudUpdate();
+      if (cloudRevision == null) {
+        _conflictDetected = false;
+        return;
+      }
+
+      final baseline = _changes.cloudBaselineForUser(user.uid);
+      final hasMeaningfulLocalState =
+          await _profiles.hasMeaningfulLocalState();
+      final currentMatchesBaseline =
+          _changes.currentStateMatchesBaselineForUser(user.uid);
+      final cloudIsNewer = _isNewerThanBaseline(cloudRevision, baseline);
+
+      final action = SyncBootstrapPolicy.decide(
+        cloudExists: true,
+        hasPendingLocalChanges: false,
+        hasMeaningfulLocalState: hasMeaningfulLocalState,
+        hasSharedBaseline: baseline != null,
+        currentStateMatchesBaseline: currentMatchesBaseline,
+        cloudIsNewerThanBaseline: cloudIsNewer,
+      );
+
+      switch (action) {
+        case CloudBootstrapAction.restoreCloud:
+          final restored = await _cloud.downloadCloudProfiles();
+          if (!restored) {
+            _conflictDetected = true;
+            _lastError =
+                'Cloud backup metadata exists, but no usable profile bundle was found. Automatic restore paused to protect local data.';
+            return;
+          }
+
+          final confirmedRevision =
+              await _cloud.lastCloudUpdate() ?? cloudRevision;
+          await _changes.markSynced(
+            confirmedRevision,
+            userId: user.uid,
+          );
+          _lastSuccessfulSync = confirmedRevision;
+          _conflictDetected = false;
+          _lastError = null;
+          return;
+
+        case CloudBootstrapAction.conflict:
+          _conflictDetected = true;
+          if (baseline == null && hasMeaningfulLocalState) {
+            _lastError =
+                'This device has local profile/library data and this account also has cloud data, but there is no confirmed shared sync baseline. Automatic restore paused to avoid overwriting either side.';
+          } else if (!currentMatchesBaseline && hasMeaningfulLocalState) {
+            _lastError =
+                'Local data no longer matches the last confirmed cloud baseline. Automatic restore paused to avoid overwriting local changes.';
+          } else {
+            _lastError =
+                'Local and cloud data both contain changes that cannot be merged safely automatically. Sync is paused until you choose which copy to keep.';
+          }
+          return;
+
+        case CloudBootstrapAction.keepLocal:
+          _conflictDetected = false;
+          _lastError = null;
+          _lastSuccessfulSync = baseline ?? cloudRevision;
+          return;
+      }
+    } catch (error) {
+      // Network/bootstrap lookup failures never block local use. The next sign
+      // in, retry, or app launch can try again without altering local data.
+      _lastError = _cloud.friendlyError(error);
+    } finally {
+      _bootstrapping = false;
     }
   }
 
@@ -94,7 +159,10 @@ class AutoSyncService {
     if (!_initialized) await initialize();
 
     final user = _accounts.currentUser;
-    if (_syncing || !_changes.hasPendingChanges || user == null) {
+    if (_syncing ||
+        _bootstrapping ||
+        !_changes.hasPendingChanges ||
+        user == null) {
       return;
     }
     if (_conflictDetected) return;
@@ -171,6 +239,9 @@ class AutoSyncService {
   void retryNow() {
     _conflictDetected = false;
     _changes.requestRetry();
+    if (!_changes.hasPendingChanges && _accounts.isSignedIn) {
+      unawaited(_handleSignedIn());
+    }
   }
 
   bool _isNewerThanBaseline(DateTime? cloudRevision, DateTime? baseline) {
