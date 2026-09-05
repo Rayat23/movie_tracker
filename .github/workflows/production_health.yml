@@ -20,12 +20,30 @@ jobs:
     # production launch. Once enabled, it checks the hosted site every 15 min.
     if: ${{ vars.PRODUCTION_DEPLOY_ENABLED == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     env:
       PRODUCTION_HEALTH_URL: https://rayat23.github.io/movie_tracker/health.json
+      TMDB_PROXY_BASE_URL: ${{ vars.TMDB_PROXY_BASE_URL }}
       GH_TOKEN: ${{ github.token }}
 
     steps:
+      - name: Normalize TMDB proxy URL
+        id: proxy_url
+        run: |
+          raw="$TMDB_PROXY_BASE_URL"
+          if [ -z "$raw" ]; then
+            echo "TMDB_PROXY_BASE_URL is not configured."
+            exit 1
+          fi
+
+          raw="${raw%/}"
+          case "$raw" in
+            http://*|https://*) base="$raw" ;;
+            *) base="https://$raw" ;;
+          esac
+
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+
       - name: Check production health
         id: first_check
         continue-on-error: true
@@ -35,14 +53,14 @@ jobs:
             "$PRODUCTION_HEALTH_URL" | tee /tmp/health.json
           grep -q '"status":"ok"' /tmp/health.json
 
-      - name: Trigger safe redeploy after persistent failure
+      - name: Trigger safe redeploy after persistent site failure
         if: ${{ steps.first_check.outcome == 'failure' }}
         run: |
-          echo "Production health failed. Triggering one safe redeploy of main."
+          echo "Production site health failed. Triggering one safe redeploy of main."
           gh workflow run production_deploy.yml --ref main -f reason=health-recovery
           sleep 90
 
-      - name: Verify recovery
+      - name: Verify site recovery
         id: recovery_check
         if: ${{ steps.first_check.outcome == 'failure' }}
         continue-on-error: true
@@ -52,7 +70,7 @@ jobs:
             "$PRODUCTION_HEALTH_URL" | tee /tmp/recovery-health.json
           grep -q '"status":"ok"' /tmp/recovery-health.json
 
-      - name: Open one incident issue if recovery failed
+      - name: Open one site incident issue if recovery failed
         if: >-
           ${{ steps.first_check.outcome == 'failure' &&
               steps.recovery_check.outcome == 'failure' }}
@@ -70,6 +88,78 @@ jobs:
           else
             gh issue comment "$existing" \
               --body "Production is still unhealthy after an automatic redeploy attempt. Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          fi
+
+          exit 1
+
+      - name: Check TMDB proxy and credential
+        id: proxy_check
+        continue-on-error: true
+        env:
+          PROXY_BASE_URL: ${{ steps.proxy_url.outputs.base }}
+        run: |
+          curl --fail --silent --show-error \
+            --retry 2 --retry-delay 5 --retry-all-errors \
+            "$PROXY_BASE_URL/trending/movie/day?language=en-US" \
+            > /tmp/tmdb-proxy.json
+
+          python - <<'PY'
+          import json
+          with open('/tmp/tmdb-proxy.json', encoding='utf-8') as handle:
+              data = json.load(handle)
+          results = data.get('results')
+          if not isinstance(results, list):
+              raise SystemExit('TMDB proxy response did not contain a results list.')
+          print(f'TMDB proxy healthy with {len(results)} results.')
+          PY
+
+      - name: Redeploy TMDB proxy after persistent proxy failure
+        if: ${{ steps.proxy_check.outcome == 'failure' }}
+        run: |
+          echo "TMDB proxy health failed. Triggering one safe Worker redeploy."
+          gh workflow run tmdb_proxy_deploy.yml --ref main
+          sleep 75
+
+      - name: Verify TMDB proxy recovery
+        id: proxy_recovery_check
+        if: ${{ steps.proxy_check.outcome == 'failure' }}
+        continue-on-error: true
+        env:
+          PROXY_BASE_URL: ${{ steps.proxy_url.outputs.base }}
+        run: |
+          curl --fail --silent --show-error \
+            --retry 2 --retry-delay 5 --retry-all-errors \
+            "$PROXY_BASE_URL/trending/movie/day?language=en-US" \
+            > /tmp/tmdb-proxy-recovery.json
+
+          python - <<'PY'
+          import json
+          with open('/tmp/tmdb-proxy-recovery.json', encoding='utf-8') as handle:
+              data = json.load(handle)
+          results = data.get('results')
+          if not isinstance(results, list):
+              raise SystemExit('TMDB proxy recovery response did not contain a results list.')
+          print(f'TMDB proxy recovered with {len(results)} results.')
+          PY
+
+      - name: Open one TMDB proxy incident if recovery failed
+        if: >-
+          ${{ steps.proxy_check.outcome == 'failure' &&
+              steps.proxy_recovery_check.outcome == 'failure' }}
+        run: |
+          existing="$(gh issue list \
+            --state open \
+            --search 'TMDB proxy health check failed in:title' \
+            --json number \
+            --jq '.[0].number // empty')"
+
+          if [ -z "$existing" ]; then
+            gh issue create \
+              --title "TMDB proxy health check failed" \
+              --body "The public TMDB proxy did not return a valid TMDB results payload after retries and one safe Worker redeploy. Check the Worker deployment and confirm that `TMDB_API_KEY` or `TMDB_BEARER_TOKEN` exists as a Cloudflare Worker secret. Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          else
+            gh issue comment "$existing" \
+              --body "TMDB proxy is still unhealthy after an automatic Worker redeploy attempt. Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           fi
 
           exit 1
