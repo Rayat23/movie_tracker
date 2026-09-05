@@ -82,6 +82,10 @@ jobs:
             --dart-define=FIREBASE_STORAGE_BUCKET=movie-tracker-ae5d1.firebasestorage.app \
             --dart-define=FIREBASE_MEASUREMENT_ID=G-FRXNDTQWJE
 
+          # Keep the service inquiry page outside the Flutter route tree so it
+          # can act as a lightweight public landing page and proof-of-work CTA.
+          cp web/services.html build/web/services.html
+
       - name: Add production health marker
         run: |
           printf '{"status":"ok","commit":"%s","builtAt":"%s"}\n' \
