@@ -1,0 +1,62 @@
+name: Service inquiry
+description: Ask about a website, app, or AI automation project without creating a commitment.
+title: "Service inquiry: "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for your interest. This form is for an initial, no-obligation inquiry only. Submitting it does not create a contract, quote, deadline, charge, payment obligation, or commitment to perform work.
+
+        Please do not include passwords, API keys, private customer data, financial information, or other sensitive information. GitHub issues in this repository are public.
+
+  - type: dropdown
+    id: service
+    attributes:
+      label: What kind of help are you looking for?
+      options:
+        - Website / landing page
+        - Flutter or app work
+        - AI automation
+        - Bug fix / technical improvement
+        - Not sure yet
+    validations:
+      required: true
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: What are you trying to achieve?
+      description: Describe the outcome, problem, or workflow in non-sensitive terms.
+      placeholder: I want to...
+    validations:
+      required: true
+
+  - type: textarea
+    id: current_state
+    attributes:
+      label: What already exists?
+      description: Optional. Mention an existing site, app, workflow, or technology stack. Do not share private credentials.
+
+  - type: dropdown
+    id: stage
+    attributes:
+      label: Project stage
+      options:
+        - Idea / planning
+        - Prototype exists
+        - Existing product needs improvement
+        - Existing workflow needs automation
+        - Not sure
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: acknowledgment
+    attributes:
+      label: Acknowledgment
+      options:
+        - label: I understand this is a public, no-obligation inquiry and does not create a contract, quote, deadline, charge, or payment commitment.
+          required: true
+        - label: I have not included passwords, API keys, private customer data, or other sensitive information.
+          required: true
