@@ -20,11 +20,13 @@ concurrency:
 jobs:
   health:
     # Production is checked every 15 minutes and immediately after a successful
-    # deployment. This stays dormant until the owner enables production.
+    # automatic deployment. Health-recovery/manual deployments do not trigger a
+    # second health run, preventing a persistent outage from causing a loop.
     if: >-
       ${{ vars.PRODUCTION_DEPLOY_ENABLED == 'true' &&
           (github.event_name != 'workflow_run' ||
-           github.event.workflow_run.conclusion == 'success') }}
+           (github.event.workflow_run.conclusion == 'success' &&
+            github.event.workflow_run.event != 'workflow_dispatch')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:
