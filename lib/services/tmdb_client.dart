@@ -20,11 +20,28 @@ class TmdbClient {
 
   static bool get usesProxy => proxyBaseUrl.trim().isNotEmpty;
 
+  static String get _normalizedProxyBaseUrl {
+    final raw = proxyBaseUrl.trim();
+    if (raw.isEmpty) return raw;
+
+    final parsed = Uri.tryParse(raw);
+    if (parsed != null && parsed.hasScheme) {
+      return raw;
+    }
+
+    // Repository variables are sometimes entered as just
+    // `worker-name.subdomain.workers.dev`. Browsers interpret that as a
+    // relative URL and request GitHub Pages instead, so default to HTTPS.
+    return 'https://$raw';
+  }
+
   static Future<Map<String, dynamic>> getJson(
     String endpoint, {
     Map<String, String> queryParameters = const {},
   }) async {
-    final String baseUrl = usesProxy ? proxyBaseUrl.trim() : ApiConfig.baseUrl;
+    final String baseUrl = usesProxy
+        ? _normalizedProxyBaseUrl
+        : ApiConfig.baseUrl;
     final normalizedBase = baseUrl.endsWith('/')
         ? baseUrl.substring(0, baseUrl.length - 1)
         : baseUrl;
