@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Project inquiries for websites, web apps, dashboards and AI automation, with Movie Tracker as live proof of work.">
+  <meta name="theme-color" content="#090A0F">
+  <title>Build With Me | Movie Tracker</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #090a0f;
+      --surface: #11131a;
+      --surface-high: #181b24;
+      --text: #f7f2f2;
+      --muted: #a5a3ab;
+      --border: rgba(255,255,255,.10);
+      --accent: #e53935;
+      --accent-soft: rgba(229,57,53,.16);
+      --green: #6ee7a8;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+
+    a { color: inherit; }
+
+    .shell {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 28px 0 64px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 40px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 800;
+      text-decoration: none;
+    }
+
+    .logo {
+      width: 42px;
+      height: 42px;
+      border-radius: 13px;
+      display: grid;
+      place-items: center;
+      background: var(--accent);
+      font-size: 20px;
+    }
+
+    .back {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 14px;
+    }
+
+    .back:hover { color: var(--text); }
+
+    .hero {
+      border: 1px solid var(--border);
+      border-radius: 28px;
+      padding: clamp(28px, 5vw, 54px);
+      background:
+        radial-gradient(circle at 12% 12%, rgba(229,57,53,.22), transparent 35%),
+        linear-gradient(135deg, #251617, #151722 55%, #0f1118);
+      overflow: hidden;
+    }
+
+    .eyebrow {
+      display: inline-block;
+      padding: 7px 10px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: #ff817e;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .08em;
+    }
+
+    h1 {
+      max-width: 820px;
+      margin: 18px 0 14px;
+      font-size: clamp(38px, 7vw, 68px);
+      line-height: 1.02;
+      letter-spacing: -.04em;
+    }
+
+    .hero p {
+      max-width: 760px;
+      color: var(--muted);
+      font-size: 17px;
+      margin: 0;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 26px;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 46px;
+      padding: 0 18px;
+      border-radius: 13px;
+      text-decoration: none;
+      font-weight: 750;
+      border: 1px solid var(--border);
+    }
+
+    .button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: white;
+    }
+
+    .button.secondary { background: rgba(255,255,255,.035); }
+
+    .section { margin-top: 42px; }
+    .section h2 {
+      font-size: 26px;
+      margin: 0 0 14px;
+      letter-spacing: -.02em;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .card {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: var(--surface);
+      padding: 22px;
+    }
+
+    .card .icon { font-size: 27px; margin-bottom: 14px; }
+    .card h3 { margin: 0 0 8px; font-size: 19px; }
+    .card p { margin: 0; color: var(--muted); }
+
+    .proof {
+      display: grid;
+      grid-template-columns: 1.2fr .8fr;
+      gap: 14px;
+    }
+
+    .proof ul {
+      margin: 16px 0 0;
+      padding-left: 20px;
+      color: var(--muted);
+    }
+
+    .proof li + li { margin-top: 7px; }
+
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--green);
+      font-weight: 750;
+      margin-bottom: 12px;
+    }
+
+    .note {
+      margin-top: 42px;
+      padding: 20px;
+      border: 1px solid rgba(229,57,53,.25);
+      background: rgba(229,57,53,.06);
+      border-radius: 16px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    footer {
+      margin-top: 38px;
+      color: #777984;
+      font-size: 13px;
+    }
+
+    @media (max-width: 820px) {
+      .grid, .proof { grid-template-columns: 1fr; }
+      .topbar { align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <div class="topbar">
+      <a class="brand" href="/movie_tracker/">
+        <span class="logo">🎬</span>
+        <span>Movie Tracker</span>
+      </a>
+      <a class="back" href="/movie_tracker/">← Back to the app</a>
+    </div>
+
+    <section class="hero">
+      <span class="eyebrow">PROJECT INQUIRIES OPEN</span>
+      <h1>Need a website, app or AI automation?</h1>
+      <p>
+        Movie Tracker is live proof of the kind of product and automation work I can build. If you have a business problem, workflow, dashboard, tracker or MVP idea, send the details for an initial review.
+      </p>
+      <div class="actions">
+        <a class="button primary" href="https://github.com/Rayat23/movie_tracker/issues/new?template=project_inquiry.yml">Start a project inquiry</a>
+        <a class="button secondary" href="/movie_tracker/">See Movie Tracker live</a>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>What I can build</h2>
+      <div class="grid">
+        <article class="card">
+          <div class="icon">🌐</div>
+          <h3>Websites & MVPs</h3>
+          <p>Responsive websites, landing pages, dashboards, trackers and practical first versions of new product ideas.</p>
+        </article>
+        <article class="card">
+          <div class="icon">🤖</div>
+          <h3>AI automation</h3>
+          <p>AI-assisted workflows for intake, repetitive operations, reporting, internal tasks and customer-support preparation.</p>
+        </article>
+        <article class="card">
+          <div class="icon">🧩</div>
+          <h3>Custom business tools</h3>
+          <p>Simple software built around a real process: forms, admin tools, lightweight portals, tracking systems and internal dashboards.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section proof">
+      <article class="card">
+        <div class="status">● Live proof of work</div>
+        <h2 style="margin-top:0">Movie Tracker</h2>
+        <p style="color:var(--muted);margin:0">The public app demonstrates an end-to-end product rather than a static mockup.</p>
+        <ul>
+          <li>Responsive Flutter web interface</li>
+          <li>Movies + TV tracking, ratings, watchlists and diary history</li>
+          <li>Separate user profiles and Firebase account/cloud data</li>
+          <li>Automatic CI/CD and GitHub Pages deployment</li>
+          <li>Cloudflare server-side TMDB proxy</li>
+          <li>Automated production health checks and safe recovery</li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <h2 style="margin-top:0">How an inquiry works</h2>
+        <p style="color:var(--muted)">1. Describe the problem and must-have features.</p>
+        <p style="color:var(--muted)">2. The request is reviewed before any commitment is made.</p>
+        <p style="color:var(--muted)">3. A quote, schedule or paid agreement only happens after explicit approval.</p>
+        <div class="actions">
+          <a class="button primary" href="https://github.com/Rayat23/movie_tracker/issues/new?template=project_inquiry.yml">Open inquiry form</a>
+        </div>
+      </article>
+    </section>
+
+    <div class="note">
+      The inquiry form is intentionally zero-cost and non-binding. Do not post passwords, API keys, financial information, private contact details or other sensitive information in a public GitHub issue.
+    </div>
+
+    <footer>Movie Tracker • Public beta • Project inquiries are reviewed before any business commitment is made.</footer>
+  </main>
+</body>
+</html>
