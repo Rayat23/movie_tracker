@@ -12,6 +12,8 @@ class LocalChangeService {
   static const String _lastLocalChangeKey = 'auto_sync_last_local_change_v1';
   static const String _cloudBaselineKey = 'auto_sync_cloud_baseline_v1';
   static const String _cloudBaselineUserKey = 'auto_sync_cloud_baseline_user_v1';
+  static const String _cloudBaselineStateKey =
+      'auto_sync_cloud_baseline_state_v1';
   static const String _observedStateKey = 'auto_sync_observed_state_v1';
 
   static const Set<String> _trackedBaseKeys = {
@@ -43,6 +45,7 @@ class LocalChangeService {
   DateTime? _lastLocalChange;
   DateTime? _cloudBaseline;
   String? _cloudBaselineUserId;
+  String? _cloudBaselineStateHash;
   String? _lastObservedState;
   bool _initialized = false;
 
@@ -66,6 +69,7 @@ class LocalChangeService {
       prefs.getString(_cloudBaselineKey) ?? '',
     );
     _cloudBaselineUserId = prefs.getString(_cloudBaselineUserKey);
+    _cloudBaselineStateHash = prefs.getString(_cloudBaselineStateKey);
 
     final currentState = _calculateTrackedState(prefs);
     final storedState = prefs.getString(_observedStateKey);
@@ -113,6 +117,14 @@ class LocalChangeService {
     );
     await _prefs!.setString(_cloudBaselineUserKey, userId);
     await _recordCurrentTrackedState();
+
+    _cloudBaselineStateHash = _lastObservedState;
+    if (_cloudBaselineStateHash != null) {
+      await _prefs!.setString(
+        _cloudBaselineStateKey,
+        _cloudBaselineStateHash!,
+      );
+    }
   }
 
   Future<void> adoptCloudBaseline(
@@ -129,10 +141,29 @@ class LocalChangeService {
     );
     await _prefs!.setString(_cloudBaselineUserKey, userId);
     await _recordCurrentTrackedState();
+
+    _cloudBaselineStateHash = _lastObservedState;
+    if (_cloudBaselineStateHash != null) {
+      await _prefs!.setString(
+        _cloudBaselineStateKey,
+        _cloudBaselineStateHash!,
+      );
+    }
   }
 
   DateTime? cloudBaselineForUser(String userId) {
     return _cloudBaselineUserId == userId ? _cloudBaseline : null;
+  }
+
+  bool currentStateMatchesBaselineForUser(String userId) {
+    final prefs = _prefs;
+    if (prefs == null ||
+        _cloudBaselineUserId != userId ||
+        _cloudBaselineStateHash == null) {
+      return false;
+    }
+
+    return _calculateTrackedState(prefs) == _cloudBaselineStateHash;
   }
 
   Future<void> acceptCurrentStateWithoutUpload() async {
