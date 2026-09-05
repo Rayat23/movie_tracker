@@ -26,7 +26,6 @@ jobs:
           import os
           import re
           import subprocess
-          import textwrap
 
           with open(os.environ['GITHUB_EVENT_PATH'], encoding='utf-8') as handle:
               event = json.load(handle)
@@ -46,6 +45,26 @@ jobs:
                   return ''
               return value
 
+          sensitive_patterns = [
+              re.compile(
+                  r'(?i)\b(api[_ -]?key|access[_ -]?token|refresh[_ -]?token|token|secret|password|passwd)\b'
+                  r'\s*[:=]\s*[^\s,;]+',
+              ),
+              re.compile(r'\bsk-[A-Za-z0-9_-]{16,}\b'),
+              re.compile(r'\bAIza[0-9A-Za-z_-]{20,}\b'),
+              re.compile(r'(?i)\bBearer\s+[A-Za-z0-9._~+/-]{16,}=*\b'),
+          ]
+
+          redaction_text = '[REDACTED — remove sensitive value from the public issue]'
+
+          def sanitize(value):
+              cleaned = value
+              detected = False
+              for pattern in sensitive_patterns:
+                  cleaned, count = pattern.subn(redaction_text, cleaned)
+                  detected = detected or count > 0
+              return cleaned, detected
+
           def compact(value, limit=500):
               value = re.sub(r'\n{3,}', '\n\n', value.strip())
               if len(value) <= limit:
@@ -53,11 +72,18 @@ jobs:
               return value[: limit - 1].rstrip() + '…'
 
           project_type = extract('What do you want built?')
-          problem = extract('What problem should this solve?')
-          features = extract('What are the must-have features?')
+          problem_raw = extract('What problem should this solve?')
+          features_raw = extract('What are the must-have features?')
           budget = extract('Budget range')
           timing = extract('When would you ideally like a first usable version?')
-          existing_tools = extract('Existing tools or systems')
+          existing_tools_raw = extract('Existing tools or systems')
+
+          problem, problem_sensitive = sanitize(problem_raw)
+          features, features_sensitive = sanitize(features_raw)
+          existing_tools, tools_sensitive = sanitize(existing_tools_raw)
+          sensitive_detected = (
+              problem_sensitive or features_sensitive or tools_sensitive
+          )
 
           type_map = {
               'Website or landing page': ('lead:website', '0366d6'),
@@ -85,6 +111,12 @@ jobs:
               labels.append((label, color, f'Inquiry budget: {budget}'))
           if timing in {'As soon as reasonably possible', 'Within 1–2 weeks'}:
               labels.append(('lead:fast-timeline', 'ff9800', 'Inquiry requests a fast first usable version'))
+          if sensitive_detected:
+              labels.append((
+                  'needs-security-review',
+                  'b60205',
+                  'Public issue may contain a credential or sensitive secret that should be removed',
+              ))
 
           for name, color, description in labels:
               subprocess.run(
@@ -138,6 +170,18 @@ jobs:
           sections = [
               '<!-- movie-tracker-lead-intake -->',
               'Thanks — your project inquiry has been received and automatically organized for an initial review.',
+          ]
+
+          if sensitive_detected:
+              sections += [
+                  '',
+                  '### ⚠️ Security cleanup needed',
+                  'A value that looks like a password, API key, access token, bearer token, or secret was detected in the information you submitted. The automated summary below has redacted the detected value, but **the original public issue text may still contain it**.',
+                  '',
+                  '**Please edit the original issue now and remove the sensitive value. If it was a real credential, rotate/revoke it with the provider. Do not paste a replacement credential into this issue.**',
+              ]
+
+          sections += [
               '',
               '### Intake summary',
               f'- **Project type:** {project_type or "Not provided"}',
