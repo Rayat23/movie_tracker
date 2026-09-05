@@ -2,6 +2,9 @@ name: Production Health
 
 on:
   workflow_dispatch:
+  workflow_run:
+    workflows: ["Production Deploy"]
+    types: [completed]
   schedule:
     - cron: '7,22,37,52 * * * *'
 
@@ -16,9 +19,12 @@ concurrency:
 
 jobs:
   health:
-    # This remains dormant until the owner explicitly enables the first
-    # production launch. Once enabled, it checks the hosted site every 15 min.
-    if: ${{ vars.PRODUCTION_DEPLOY_ENABLED == 'true' }}
+    # Production is checked every 15 minutes and immediately after a successful
+    # deployment. This stays dormant until the owner enables production.
+    if: >-
+      ${{ vars.PRODUCTION_DEPLOY_ENABLED == 'true' &&
+          (github.event_name != 'workflow_run' ||
+           github.event.workflow_run.conclusion == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:
