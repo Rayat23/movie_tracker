@@ -3,7 +3,7 @@ import 'dart:async';
 import 'account_service.dart';
 import 'cloud_sync_service.dart';
 import 'local_change_service.dart';
-import 'profile_service.dart';
+import 'local_library_state_service.dart';
 import 'sync_bootstrap_policy.dart';
 
 class AutoSyncService {
@@ -17,7 +17,8 @@ class AutoSyncService {
   final AccountService _accounts = AccountService.instance;
   final CloudSyncService _cloud = CloudSyncService.instance;
   final LocalChangeService _changes = LocalChangeService.instance;
-  final ProfileService _profiles = ProfileService.instance;
+  final LocalLibraryStateService _localLibrary =
+      LocalLibraryStateService.instance;
 
   Timer? _retryTimer;
   StreamSubscription<dynamic>? _authSubscription;
@@ -87,7 +88,7 @@ class AutoSyncService {
 
       final baseline = _changes.cloudBaselineForUser(user.uid);
       final hasMeaningfulLocalState =
-          await _profiles.hasMeaningfulLocalState();
+          await _localLibrary.hasMeaningfulState();
       final currentMatchesBaseline =
           _changes.currentStateMatchesBaselineForUser(user.uid);
       final cloudIsNewer = _isNewerThanBaseline(cloudRevision, baseline);
