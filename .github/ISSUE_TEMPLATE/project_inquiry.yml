@@ -1,0 +1,89 @@
+name: Project inquiry
+description: Share a website, app, dashboard or AI automation project for an initial review.
+title: "[Project inquiry] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for your interest. This form is for an initial project review only. It is not a quote, contract, payment request, or deadline commitment.
+
+        **Do not post private contact details, passwords, API keys, account credentials, financial information, or other sensitive information here.**
+
+  - type: dropdown
+    id: project_type
+    attributes:
+      label: What do you want built?
+      options:
+        - Website or landing page
+        - Web app or MVP
+        - Dashboard or tracker
+        - AI automation or workflow
+        - Internal business tool
+        - Not sure yet
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem should this solve?
+      description: Describe the business problem or task in plain language.
+      placeholder: "Example: I receive customer requests manually and want one simple dashboard to organize them and automate follow-up steps."
+    validations:
+      required: true
+
+  - type: textarea
+    id: features
+    attributes:
+      label: What are the must-have features?
+      description: List the most important things the first version needs to do.
+      placeholder: |
+        - Customer intake form
+        - Admin dashboard
+        - Automatic confirmation
+        - Export/reporting
+    validations:
+      required: true
+
+  - type: dropdown
+    id: budget
+    attributes:
+      label: Budget range
+      options:
+        - I need advice first
+        - Under $500
+        - $500–$1,500
+        - $1,500–$5,000
+        - $5,000+
+    validations:
+      required: true
+
+  - type: dropdown
+    id: timing
+    attributes:
+      label: When would you ideally like a first usable version?
+      options:
+        - As soon as reasonably possible
+        - Within 1–2 weeks
+        - Within 1 month
+        - More than 1 month
+        - No fixed deadline
+    validations:
+      required: true
+
+  - type: textarea
+    id: existing_tools
+    attributes:
+      label: Existing tools or systems
+      description: Optional. Mention software, website platforms, spreadsheets, APIs, or workflows this may need to work with. Do not include credentials.
+
+  - type: checkboxes
+    id: acknowledgement
+    attributes:
+      label: Before submitting
+      options:
+        - label: I understand this is only an initial inquiry and does not create a contract, quote, payment obligation, or guaranteed deadline.
+          required: true
+        - label: I have not included private credentials or sensitive personal/financial information.
+          required: true
