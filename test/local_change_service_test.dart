@@ -24,6 +24,13 @@ void main() {
     expect(service.hasPendingChanges, isFalse);
     expect(service.cloudBaselineForUser('account-a'), revision);
     expect(service.cloudBaselineForUser('account-b'), isNull);
+    expect(service.currentStateMatchesBaselineForUser('account-a'), isTrue);
+    expect(service.currentStateMatchesBaselineForUser('account-b'), isFalse);
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('favorite_movies', '[123]');
+
+    expect(service.currentStateMatchesBaselineForUser('account-a'), isFalse);
 
     service.dispose();
   });
