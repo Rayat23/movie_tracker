@@ -22,11 +22,12 @@ jobs:
     # Production is checked every 15 minutes and immediately after a successful
     # automatic deployment. Health-recovery/manual deployments do not trigger a
     # second health run, preventing a persistent outage from causing a loop.
+    # Production is already live, so scheduled/manual health checks must not be
+    # disabled by the former launch-gate variable.
     if: >-
-      ${{ vars.PRODUCTION_DEPLOY_ENABLED == 'true' &&
-          (github.event_name != 'workflow_run' ||
-           (github.event.workflow_run.conclusion == 'success' &&
-            github.event.workflow_run.event != 'workflow_dispatch')) }}
+      ${{ github.event_name != 'workflow_run' ||
+          (github.event.workflow_run.conclusion == 'success' &&
+           github.event.workflow_run.event != 'workflow_dispatch') }}
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:
