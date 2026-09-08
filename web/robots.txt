@@ -1,2 +1,4 @@
 User-agent: *
 Allow: /
+
+Sitemap: https://rayat23.github.io/movie_tracker/sitemap.xml
