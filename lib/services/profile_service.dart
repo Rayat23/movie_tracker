@@ -198,12 +198,16 @@ class ProfileService extends ChangeNotifier {
     if (_profiles.length != 1) return true;
 
     final profile = _profiles.single;
-    if (profile.name.trim() != 'My Profile' || profile.avatarIndex != 0) return true;
+    if (profile.name.trim() != 'My Profile' || profile.avatarIndex != 0) {
+      return true;
+    }
     for (final key in _profileDataKeys) {
       final scopedValue = prefs.getString(_scopedKey(profile.id, key));
       final baseValue = prefs.getString(key);
       if (SyncBootstrapPolicy.isMeaningfulTrackingValue(scopedValue) ||
-          SyncBootstrapPolicy.isMeaningfulTrackingValue(baseValue)) return true;
+          SyncBootstrapPolicy.isMeaningfulTrackingValue(baseValue)) {
+        return true;
+      }
     }
     return false;
   }
