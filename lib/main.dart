@@ -34,11 +34,16 @@ class MovieTrackerApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Movie Tracker',
-      theme: AppTheme.dark(),
-      home: const HomeScreen(),
+    return ListenableBuilder(
+      listenable: ProfileService.instance,
+      builder: (context, _) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'Movie Tracker',
+          theme: AppTheme.dark(),
+          home: const HomeScreen(),
+        );
+      },
     );
   }
 }

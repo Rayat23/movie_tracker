@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/user_profile.dart';
@@ -7,7 +8,7 @@ import 'favorites_service.dart';
 import 'series_tracking_service.dart';
 import 'sync_bootstrap_policy.dart';
 
-class ProfileService {
+class ProfileService extends ChangeNotifier {
   ProfileService._privateConstructor();
 
   static final ProfileService instance = ProfileService._privateConstructor();
@@ -77,9 +78,8 @@ class ProfileService {
 
       await _saveProfiles(prefs);
       await prefs.setString(_activeProfileKey, profile.id);
-
-      // Existing pre-profile Movie Tracker data becomes the first profile.
       await _snapshotBaseDataToProfile(prefs, profile.id);
+      notifyListeners();
       return;
     }
 
@@ -88,19 +88,16 @@ class ProfileService {
 
     _activeProfileId = activeExists ? storedActiveId : _profiles.first.id;
     await prefs.setString(_activeProfileKey, _activeProfileId!);
+    notifyListeners();
   }
 
-  Future<UserProfile> createProfile(
-    String name, {
-    int avatarIndex = 0,
-  }) async {
+  Future<UserProfile> createProfile(String name, {int avatarIndex = 0}) async {
     final trimmedName = name.trim();
     if (trimmedName.isEmpty) {
       throw ArgumentError('Profile name cannot be empty.');
     }
 
     final prefs = await SharedPreferences.getInstance();
-
     if (_activeProfileId != null) {
       await _snapshotBaseDataToProfile(prefs, _activeProfileId!);
     }
@@ -114,12 +111,11 @@ class ProfileService {
 
     _profiles.add(profile);
     _activeProfileId = profile.id;
-
     await _saveProfiles(prefs);
     await prefs.setString(_activeProfileKey, profile.id);
     await _clearBaseData(prefs);
     await _reloadTrackingServices();
-
+    notifyListeners();
     return profile;
   }
 
@@ -128,7 +124,6 @@ class ProfileService {
     if (!_profiles.any((profile) => profile.id == profileId)) return;
 
     final prefs = await SharedPreferences.getInstance();
-
     if (_activeProfileId != null) {
       await _snapshotBaseDataToProfile(prefs, _activeProfileId!);
     }
@@ -137,6 +132,7 @@ class ProfileService {
     await prefs.setString(_activeProfileKey, profileId);
     await _restoreProfileDataToBase(prefs, profileId);
     await _reloadTrackingServices();
+    notifyListeners();
   }
 
   Future<void> renameProfile(String profileId, String name) async {
@@ -147,9 +143,9 @@ class ProfileService {
     if (index == -1) return;
 
     _profiles[index] = _profiles[index].copyWith(name: trimmedName);
-
     final prefs = await SharedPreferences.getInstance();
     await _saveProfiles(prefs);
+    notifyListeners();
   }
 
   Future<void> setAvatar(String profileId, int avatarIndex) async {
@@ -159,20 +155,18 @@ class ProfileService {
     _profiles[index] = _profiles[index].copyWith(
       avatarIndex: avatarIndex.clamp(0, 7).toInt(),
     );
-
     final prefs = await SharedPreferences.getInstance();
     await _saveProfiles(prefs);
+    notifyListeners();
   }
 
   Future<bool> deleteProfile(String profileId) async {
     if (_profiles.length <= 1) return false;
-
     final index = _profiles.indexWhere((profile) => profile.id == profileId);
     if (index == -1) return false;
 
     final prefs = await SharedPreferences.getInstance();
     final deletingActive = profileId == _activeProfileId;
-
     _profiles.removeAt(index);
     await _removeProfileSnapshot(prefs, profileId);
 
@@ -185,36 +179,28 @@ class ProfileService {
     }
 
     await _saveProfiles(prefs);
+    notifyListeners();
     return true;
   }
 
   Future<void> persistActiveProfileData() async {
     if (_activeProfileId == null) return;
-
     final prefs = await SharedPreferences.getInstance();
     await _snapshotBaseDataToProfile(prefs, _activeProfileId!);
   }
 
-  /// Returns false only for the untouched generated local shell: one default
-  /// "My Profile", default avatar, and no non-empty movie/TV tracking state.
-  ///
-  /// This lets automatic cloud bootstrap replace a genuinely clean browser
-  /// while treating any customized profile/library as data that must be kept.
   Future<bool> hasMeaningfulLocalState() async {
     if (_profiles.isEmpty) return false;
-
     final prefs = await SharedPreferences.getInstance();
     if (_activeProfileId != null) {
       await _snapshotBaseDataToProfile(prefs, _activeProfileId!);
     }
-
     if (_profiles.length != 1) return true;
 
     final profile = _profiles.single;
     if (profile.name.trim() != 'My Profile' || profile.avatarIndex != 0) {
       return true;
     }
-
     for (final key in _profileDataKeys) {
       final scopedValue = prefs.getString(_scopedKey(profile.id, key));
       final baseValue = prefs.getString(key);
@@ -223,20 +209,15 @@ class ProfileService {
         return true;
       }
     }
-
     return false;
   }
 
-  /// Serializes every local profile and its tracking data for cloud backup.
   Future<Map<String, dynamic>> exportCloudBundle() async {
     final prefs = await SharedPreferences.getInstance();
-
     if (_activeProfileId != null) {
       await _snapshotBaseDataToProfile(prefs, _activeProfileId!);
     }
-
     final snapshots = <String, Map<String, String>>{};
-
     for (final profile in _profiles) {
       final data = <String, String>{};
       for (final key in _profileDataKeys) {
@@ -245,7 +226,6 @@ class ProfileService {
       }
       snapshots[profile.id] = data;
     }
-
     return {
       'version': 1,
       'activeProfileId': _activeProfileId,
@@ -254,36 +234,25 @@ class ProfileService {
     };
   }
 
-  /// Replaces the local profile set with a previously exported cloud bundle.
   Future<void> importCloudBundle(Map<String, dynamic> bundle) async {
     final rawProfiles = bundle['profiles'];
     if (rawProfiles is! List || rawProfiles.isEmpty) {
       throw StateError('No cloud profiles were found for this account.');
     }
-
     final importedProfiles = rawProfiles
-        .map(
-          (item) => UserProfile.fromJson(
-            Map<String, dynamic>.from(item as Map),
-          ),
-        )
+        .map((item) => UserProfile.fromJson(Map<String, dynamic>.from(item as Map)))
         .toList();
-
     final prefs = await SharedPreferences.getInstance();
-
     for (final profile in _profiles) {
       await _removeProfileSnapshot(prefs, profile.id);
     }
-
     _profiles
       ..clear()
       ..addAll(importedProfiles);
 
     final requestedActiveId = bundle['activeProfileId']?.toString();
-    final activeExists =
-        _profiles.any((profile) => profile.id == requestedActiveId);
+    final activeExists = _profiles.any((profile) => profile.id == requestedActiveId);
     _activeProfileId = activeExists ? requestedActiveId : _profiles.first.id;
-
     final rawSnapshots = bundle['snapshots'];
     final snapshots = rawSnapshots is Map
         ? Map<String, dynamic>.from(rawSnapshots)
@@ -294,7 +263,6 @@ class ProfileService {
       final data = rawData is Map
           ? Map<String, dynamic>.from(rawData)
           : <String, dynamic>{};
-
       for (final key in _profileDataKeys) {
         final value = data[key];
         if (value == null) {
@@ -309,6 +277,7 @@ class ProfileService {
     await prefs.setString(_activeProfileKey, _activeProfileId!);
     await _restoreProfileDataToBase(prefs, _activeProfileId!);
     await _reloadTrackingServices();
+    notifyListeners();
   }
 
   Future<void> _reloadTrackingServices() async {
@@ -318,14 +287,10 @@ class ProfileService {
     ]);
   }
 
-  Future<void> _snapshotBaseDataToProfile(
-    SharedPreferences prefs,
-    String profileId,
-  ) async {
+  Future<void> _snapshotBaseDataToProfile(SharedPreferences prefs, String profileId) async {
     for (final key in _profileDataKeys) {
       final value = prefs.getString(key);
       final scopedKey = _scopedKey(profileId, key);
-
       if (value == null) {
         await prefs.remove(scopedKey);
       } else {
@@ -334,13 +299,9 @@ class ProfileService {
     }
   }
 
-  Future<void> _restoreProfileDataToBase(
-    SharedPreferences prefs,
-    String profileId,
-  ) async {
+  Future<void> _restoreProfileDataToBase(SharedPreferences prefs, String profileId) async {
     for (final key in _profileDataKeys) {
       final scopedValue = prefs.getString(_scopedKey(profileId, key));
-
       if (scopedValue == null) {
         await prefs.remove(key);
       } else {
@@ -355,10 +316,7 @@ class ProfileService {
     }
   }
 
-  Future<void> _removeProfileSnapshot(
-    SharedPreferences prefs,
-    String profileId,
-  ) async {
+  Future<void> _removeProfileSnapshot(SharedPreferences prefs, String profileId) async {
     for (final key in _profileDataKeys) {
       await prefs.remove(_scopedKey(profileId, key));
     }
@@ -371,11 +329,6 @@ class ProfileService {
     );
   }
 
-  String _scopedKey(String profileId, String key) {
-    return 'profile:$profileId:$key';
-  }
-
-  String _newProfileId() {
-    return DateTime.now().microsecondsSinceEpoch.toString();
-  }
+  String _scopedKey(String profileId, String key) => 'profile:$profileId:$key';
+  String _newProfileId() => DateTime.now().microsecondsSinceEpoch.toString();
 }
