@@ -5,6 +5,8 @@ import '../models/tv_watch_entry.dart';
 import '../services/favorites_service.dart';
 import '../services/series_tracking_service.dart';
 
+enum _DiaryFilter { all, movies, tv }
+
 class DiaryScreen extends StatefulWidget {
   const DiaryScreen({super.key});
 
@@ -13,6 +15,8 @@ class DiaryScreen extends StatefulWidget {
 }
 
 class _DiaryScreenState extends State<DiaryScreen> {
+  _DiaryFilter _filter = _DiaryFilter.all;
+
   @override
   Widget build(BuildContext context) {
     final favorites = FavoritesService.instance;
@@ -65,7 +69,20 @@ class _DiaryScreenState extends State<DiaryScreen> {
     }
 
     records.sort((a, b) => b.watchedAt.compareTo(a.watchedAt));
+
+    final movieCount = records.where((record) => record.kind == 'Movie').length;
+    final tvCount = records.where((record) => record.kind == 'TV Episode').length;
     final rewatchCount = records.where((record) => record.isRewatch).length;
+    final visibleRecords = records.where((record) {
+      switch (_filter) {
+        case _DiaryFilter.all:
+          return true;
+        case _DiaryFilter.movies:
+          return record.kind == 'Movie';
+        case _DiaryFilter.tv:
+          return record.kind == 'TV Episode';
+      }
+    }).toList();
 
     return Scaffold(
       appBar: AppBar(title: const Text('Diary')),
@@ -82,11 +99,36 @@ class _DiaryScreenState extends State<DiaryScreen> {
           : ListView(
               padding: const EdgeInsets.all(20),
               children: [
-                _DiarySummaryCard(totalEntries: records.length, rewatchCount: rewatchCount),
-                const SizedBox(height: 12),
-                const Text('Tap a movie entry to change when you watched it.', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                _DiarySummaryCard(
+                  totalEntries: records.length,
+                  movieCount: movieCount,
+                  tvCount: tvCount,
+                  rewatchCount: rewatchCount,
+                ),
                 const SizedBox(height: 16),
-                ..._buildDiaryWidgets(records),
+                _DiaryFilters(
+                  selected: _filter,
+                  onChanged: (value) => setState(() => _filter = value),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  _filter == _DiaryFilter.movies
+                      ? 'Tap a movie entry to change when you watched it.'
+                      : _filter == _DiaryFilter.tv
+                          ? 'TV episode date editing is coming in a later safe update.'
+                          : 'Tap a movie entry to change when you watched it.',
+                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+                ),
+                const SizedBox(height: 16),
+                if (visibleRecords.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 48),
+                    child: Center(
+                      child: Text('No diary entries in this filter.', style: TextStyle(color: Colors.grey)),
+                    ),
+                  )
+                else
+                  ..._buildDiaryWidgets(visibleRecords),
               ],
             ),
     );
@@ -146,10 +188,50 @@ class _DiaryScreenState extends State<DiaryScreen> {
   }
 }
 
+class _DiaryFilters extends StatelessWidget {
+  final _DiaryFilter selected;
+  final ValueChanged<_DiaryFilter> onChanged;
+
+  const _DiaryFilters({required this.selected, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        ChoiceChip(
+          label: const Text('All'),
+          selected: selected == _DiaryFilter.all,
+          onSelected: (_) => onChanged(_DiaryFilter.all),
+        ),
+        ChoiceChip(
+          label: const Text('Movies'),
+          selected: selected == _DiaryFilter.movies,
+          onSelected: (_) => onChanged(_DiaryFilter.movies),
+        ),
+        ChoiceChip(
+          label: const Text('TV'),
+          selected: selected == _DiaryFilter.tv,
+          onSelected: (_) => onChanged(_DiaryFilter.tv),
+        ),
+      ],
+    );
+  }
+}
+
 class _DiarySummaryCard extends StatelessWidget {
   final int totalEntries;
+  final int movieCount;
+  final int tvCount;
   final int rewatchCount;
-  const _DiarySummaryCard({required this.totalEntries, required this.rewatchCount});
+
+  const _DiarySummaryCard({
+    required this.totalEntries,
+    required this.movieCount,
+    required this.tvCount,
+    required this.rewatchCount,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -157,8 +239,10 @@ class _DiarySummaryCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(color: Colors.grey[900], borderRadius: BorderRadius.circular(16)),
-      child: Wrap(spacing: 28, runSpacing: 12, children: [
-        _summaryItem(Icons.menu_book, '$totalEntries', 'Diary entries', Colors.redAccent),
+      child: Wrap(spacing: 28, runSpacing: 14, children: [
+        _summaryItem(Icons.menu_book, '$totalEntries', 'Entries', Colors.redAccent),
+        _summaryItem(Icons.movie_outlined, '$movieCount', 'Movies', Colors.orangeAccent),
+        _summaryItem(Icons.tv_outlined, '$tvCount', 'TV episodes', Colors.lightBlueAccent),
         _summaryItem(Icons.replay, '$rewatchCount', 'Rewatches', Colors.deepPurpleAccent),
       ]),
     );
