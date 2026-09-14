@@ -46,6 +46,20 @@ class ProfileScreen extends StatelessWidget {
     final totalRewatches =
         favorites.totalMovieRewatches + seriesTracking.totalTvRewatches;
 
+    final now = DateTime.now();
+    final monthStart = DateTime(now.year, now.month);
+    final nextMonth = DateTime(now.year, now.month + 1);
+    final allWatchDates = <DateTime>[
+      ...watchedMovies.expand(favorites.getMovieWatchDates),
+      ...seriesTracking.allWatchEvents.map((entry) => entry.watchedAt),
+    ]..sort();
+    final thisMonthWatches = allWatchDates
+        .where(
+          (date) => !date.isBefore(monthStart) && date.isBefore(nextMonth),
+        )
+        .length;
+    final lastWatchedAt = allWatchDates.isEmpty ? null : allWatchDates.last;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(22, 22, 22, 40),
       child: Center(
@@ -90,6 +104,13 @@ class ProfileScreen extends StatelessWidget {
                   _statCard(Icons.play_circle, 'Episodes Watched', '${seriesTracking.totalWatchedEpisodes}', Colors.greenAccent),
                   _statCard(Icons.replay, 'Episode Watches', '${seriesTracking.totalTvWatchEvents}', Colors.deepPurpleAccent),
                   _statCard(Icons.repeat, 'Total Rewatches', '$totalRewatches', Colors.purpleAccent),
+                  _statCard(Icons.calendar_month, 'This Month Watches', '$thisMonthWatches', Colors.orangeAccent),
+                  _statCard(
+                    Icons.history,
+                    'Last Watched',
+                    lastWatchedAt == null ? '—' : _formatWatchDate(lastWatchedAt),
+                    Colors.lightGreenAccent,
+                  ),
                   _statCard(Icons.movie_filter, 'Movie Watch Time', _formatMinutes(movieMinutes), Colors.redAccent),
                   _statCard(Icons.live_tv, 'TV Watch Time', _formatMinutes(tvMinutes), Colors.cyanAccent),
                   _statCard(Icons.timelapse, 'Total Watch Time', _formatMinutes(totalMinutes), Colors.purpleAccent),
@@ -378,6 +399,24 @@ class ProfileScreen extends StatelessWidget {
     if (hours == 0) return '${remainingMinutes}m';
     if (remainingMinutes == 0) return '${hours}h';
     return '${hours}h ${remainingMinutes}m';
+  }
+
+  String _formatWatchDate(DateTime date) {
+    const months = <String>[
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 
   Widget _emptyRatings() {
