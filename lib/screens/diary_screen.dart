@@ -4,6 +4,7 @@ import '../models/movie.dart';
 import '../models/tv_watch_entry.dart';
 import '../services/favorites_service.dart';
 import '../services/series_tracking_service.dart';
+import '../services/tv_watch_timestamp_service.dart';
 
 enum _DiaryFilter { all, movies, tv }
 
@@ -64,6 +65,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
           imageUrl: imageUrl,
           runtimeMinutes: entry.runtimeMinutes,
           watchNumber: index + 1,
+          tvEntry: entry,
         ));
       }
     }
@@ -111,13 +113,9 @@ class _DiaryScreenState extends State<DiaryScreen> {
                   onChanged: (value) => setState(() => _filter = value),
                 ),
                 const SizedBox(height: 12),
-                Text(
-                  _filter == _DiaryFilter.movies
-                      ? 'Tap a movie entry to change when you watched it.'
-                      : _filter == _DiaryFilter.tv
-                          ? 'TV episode date editing is coming in a later safe update.'
-                          : 'Tap a movie entry to change when you watched it.',
-                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+                const Text(
+                  'Tap an entry to change when you watched it.',
+                  style: TextStyle(color: Colors.white54, fontSize: 12),
                 ),
                 const SizedBox(height: 16),
                 if (visibleRecords.isEmpty)
@@ -145,39 +143,65 @@ class _DiaryScreenState extends State<DiaryScreen> {
           child: Text(_formatDay(record.watchedAt), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
         ));
       }
-      widgets.add(_DiaryTile(record: record, onEdit: record.movie == null ? null : () => _editMovieWatchTime(record)));
+      widgets.add(_DiaryTile(
+        record: record,
+        onEdit: record.movie != null || record.tvEntry != null
+            ? () => _editWatchTime(record)
+            : null,
+      ));
       widgets.add(const SizedBox(height: 10));
       previousDate = record.watchedAt;
     }
     return widgets;
   }
 
-  Future<void> _editMovieWatchTime(_DiaryRecord record) async {
-    final movie = record.movie;
-    if (movie == null) return;
+  Future<void> _editWatchTime(_DiaryRecord record) async {
+    final replacement = await _pickWatchDateTime(record.watchedAt);
+    if (replacement == null || !mounted) return;
+
+    bool updated = false;
+    if (record.movie != null) {
+      await FavoritesService.instance.updateMovieWatchDate(record.movie!, record.watchedAt, replacement);
+      updated = true;
+    } else if (record.tvEntry != null) {
+      updated = await TvWatchTimestampService.instance.updateWatchDate(
+        entry: record.tvEntry!,
+        replacement: replacement,
+        isRewatch: record.isRewatch,
+      );
+    }
+
+    if (!mounted) return;
+    if (!updated) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('That diary entry changed before it could be updated.')));
+      return;
+    }
+
+    setState(() {});
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Diary time updated.')));
+  }
+
+  Future<DateTime?> _pickWatchDateTime(DateTime current) async {
     final date = await showDatePicker(
       context: context,
-      initialDate: record.watchedAt,
+      initialDate: current,
       firstDate: DateTime(1900),
       lastDate: DateTime.now(),
       helpText: 'When did you watch it?',
     );
-    if (date == null || !mounted) return;
+    if (date == null || !mounted) return null;
     final time = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay.fromDateTime(record.watchedAt),
+      initialTime: TimeOfDay.fromDateTime(current),
       helpText: 'Choose watch time',
     );
-    if (time == null || !mounted) return;
+    if (time == null || !mounted) return null;
     final replacement = DateTime(date.year, date.month, date.day, time.hour, time.minute);
     if (replacement.isAfter(DateTime.now())) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Watch time cannot be in the future.')));
-      return;
+      return null;
     }
-    await FavoritesService.instance.updateMovieWatchDate(movie, record.watchedAt, replacement);
-    if (!mounted) return;
-    setState(() {});
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Diary time updated.')));
+    return replacement;
   }
 
   bool _sameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
@@ -354,6 +378,7 @@ class _DiaryRecord {
   final int? runtimeMinutes;
   final int watchNumber;
   final Movie? movie;
+  final TvWatchEntry? tvEntry;
 
   const _DiaryRecord({
     required this.kind,
@@ -364,6 +389,7 @@ class _DiaryRecord {
     required this.runtimeMinutes,
     required this.watchNumber,
     this.movie,
+    this.tvEntry,
   });
 
   bool get isRewatch => watchNumber > 1;
