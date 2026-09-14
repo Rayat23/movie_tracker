@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/movie.dart';
 import '../services/favorites_service.dart';
@@ -53,7 +54,19 @@ class ProfileScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _profileHeader(context, profile.name, profile.initials),
+              _profileHeader(
+                context,
+                profile.name,
+                profile.initials,
+                favorites: favorites,
+                seriesTracking: seriesTracking,
+                movieMinutes: movieMinutes,
+                tvMinutes: tvMinutes,
+                totalMinutes: totalMinutes,
+                totalRewatches: totalRewatches,
+                ratedMoviesCount: ratedMovies.length,
+                averageRating: averageRating,
+              ),
               const SizedBox(height: 28),
               const Text(
                 'Tracking Overview',
@@ -129,7 +142,19 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _profileHeader(BuildContext context, String name, String initials) {
+  Widget _profileHeader(
+    BuildContext context,
+    String name,
+    String initials, {
+    required FavoritesService favorites,
+    required SeriesTrackingService seriesTracking,
+    required int movieMinutes,
+    required int tvMinutes,
+    required int totalMinutes,
+    required int totalRewatches,
+    required int ratedMoviesCount,
+    required double averageRating,
+  }) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
@@ -205,6 +230,24 @@ class ProfileScreen extends StatelessWidget {
               ),
               OutlinedButton.icon(
                 onPressed: () {
+                  _copyStatsSummary(
+                    context,
+                    profileName: name,
+                    favorites: favorites,
+                    seriesTracking: seriesTracking,
+                    movieMinutes: movieMinutes,
+                    tvMinutes: tvMinutes,
+                    totalMinutes: totalMinutes,
+                    totalRewatches: totalRewatches,
+                    ratedMoviesCount: ratedMoviesCount,
+                    averageRating: averageRating,
+                  );
+                },
+                icon: const Icon(Icons.copy_all_rounded),
+                label: const Text('Copy Stats Summary'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(builder: (context) => const ProfilesScreen()),
@@ -236,6 +279,49 @@ class ProfileScreen extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+
+  Future<void> _copyStatsSummary(
+    BuildContext context, {
+    required String profileName,
+    required FavoritesService favorites,
+    required SeriesTrackingService seriesTracking,
+    required int movieMinutes,
+    required int tvMinutes,
+    required int totalMinutes,
+    required int totalRewatches,
+    required int ratedMoviesCount,
+    required double averageRating,
+  }) async {
+    final summary = StringBuffer()
+      ..writeln('$profileName — Movie Tracker')
+      ..writeln('Movies watched: ${favorites.watched.length}')
+      ..writeln('Movie watches: ${favorites.totalMovieWatchEvents}')
+      ..writeln('Series started: ${seriesTracking.watchedSeriesCount}')
+      ..writeln('Series completed: ${seriesTracking.completedSeriesCount}')
+      ..writeln('Episodes watched: ${seriesTracking.totalWatchedEpisodes}')
+      ..writeln('Episode watches: ${seriesTracking.totalTvWatchEvents}')
+      ..writeln('Total rewatches: $totalRewatches')
+      ..writeln('Movie watch time: ${_formatMinutes(movieMinutes)}')
+      ..writeln('TV watch time: ${_formatMinutes(tvMinutes)}')
+      ..writeln('Total watch time: ${_formatMinutes(totalMinutes)}')
+      ..writeln('Movie favorites: ${favorites.favorites.length}')
+      ..writeln('Movie watchlist: ${favorites.watchlist.length}')
+      ..writeln('Movies rated: $ratedMoviesCount')
+      ..writeln(
+        'Average movie rating: ${ratedMoviesCount == 0 ? '—' : '${averageRating.toStringAsFixed(1)}/10'}',
+      )
+      ..writeln('Series rated: ${seriesTracking.ratedSeriesCount}')
+      ..writeln(
+        'Average series rating: ${seriesTracking.ratedSeriesCount == 0 ? '—' : '${seriesTracking.averageSeriesRating.toStringAsFixed(1)}/10'}',
+      );
+
+    await Clipboard.setData(ClipboardData(text: summary.toString().trim()));
+
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Stats summary copied to clipboard.')),
     );
   }
 
