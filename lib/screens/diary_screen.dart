@@ -35,8 +35,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
               : 'Movie • Your rating ${favorites.getUserRating(movie)!.toStringAsFixed(0)}/10',
           watchedAt: dates[index],
           imageUrl: movie.posterPath.isEmpty ? null : movie.posterUrl,
-          runtimeMinutes:
-              movie.runtimeMinutes > 0 ? movie.runtimeMinutes : null,
+          runtimeMinutes: movie.runtimeMinutes > 0 ? movie.runtimeMinutes : null,
           watchNumber: index + 1,
           movie: movie,
         ));
@@ -54,16 +53,14 @@ class _DiaryScreenState extends State<DiaryScreen> {
         final entry = events[index];
         String? imageUrl;
         if (entry.episodeStillPath.isNotEmpty) {
-          imageUrl =
-              'https://image.tmdb.org/t/p/w780${entry.episodeStillPath}';
+          imageUrl = 'https://image.tmdb.org/t/p/w780${entry.episodeStillPath}';
         } else if (entry.showPosterPath.isNotEmpty) {
           imageUrl = 'https://image.tmdb.org/t/p/w500${entry.showPosterPath}';
         }
         records.add(_DiaryRecord(
           kind: 'TV Episode',
           title: entry.showName,
-          subtitle:
-              'S${entry.seasonNumber.toString().padLeft(2, '0')}E${entry.episodeNumber.toString().padLeft(2, '0')} • ${entry.episodeName}',
+          subtitle: 'S${entry.seasonNumber.toString().padLeft(2, '0')}E${entry.episodeNumber.toString().padLeft(2, '0')} • ${entry.episodeName}',
           watchedAt: entry.watchedAt,
           imageUrl: imageUrl,
           runtimeMinutes: entry.runtimeMinutes,
@@ -76,8 +73,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
     records.sort((a, b) => b.watchedAt.compareTo(a.watchedAt));
 
     final movieCount = records.where((record) => record.kind == 'Movie').length;
-    final tvCount =
-        records.where((record) => record.kind == 'TV Episode').length;
+    final tvCount = records.where((record) => record.kind == 'TV Episode').length;
     final rewatchCount = records.where((record) => record.isRewatch).length;
     final visibleRecords = records.where((record) {
       switch (_filter) {
@@ -94,27 +90,13 @@ class _DiaryScreenState extends State<DiaryScreen> {
       appBar: AppBar(title: const Text('Diary')),
       body: records.isEmpty
           ? const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.menu_book_outlined, size: 75, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text(
-                    'Your diary is empty',
-                    style: TextStyle(
-                      fontSize: 21,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    'Movies and TV episodes you mark watched will appear here.',
-                    style: TextStyle(color: Colors.grey),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
+              child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Icon(Icons.menu_book_outlined, size: 75, color: Colors.grey),
+                SizedBox(height: 16),
+                Text('Your diary is empty', style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold, color: Colors.grey)),
+                SizedBox(height: 8),
+                Text('Movies and TV episodes you mark watched will appear here.', style: TextStyle(color: Colors.grey), textAlign: TextAlign.center),
+              ]),
             )
           : ListView(
               padding: const EdgeInsets.all(20),
@@ -140,10 +122,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 48),
                     child: Center(
-                      child: Text(
-                        'No diary entries in this filter.',
-                        style: TextStyle(color: Colors.grey),
-                      ),
+                      child: Text('No diary entries in this filter.', style: TextStyle(color: Colors.grey)),
                     ),
                   )
                 else
@@ -161,10 +140,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
         if (widgets.isNotEmpty) widgets.add(const SizedBox(height: 12));
         widgets.add(Padding(
           padding: const EdgeInsets.only(bottom: 10, top: 4),
-          child: Text(
-            _formatDay(record.watchedAt),
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
+          child: Text(_formatDay(record.watchedAt), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
         ));
       }
       widgets.add(_DiaryTile(
@@ -185,11 +161,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
 
     bool updated = false;
     if (record.movie != null) {
-      await FavoritesService.instance.updateMovieWatchDate(
-        record.movie!,
-        record.watchedAt,
-        replacement,
-      );
+      await FavoritesService.instance.updateMovieWatchDate(record.movie!, record.watchedAt, replacement);
       updated = true;
     } else if (record.tvEntry != null) {
       updated = await TvWatchTimestampService.instance.updateWatchDate(
@@ -201,18 +173,12 @@ class _DiaryScreenState extends State<DiaryScreen> {
 
     if (!mounted) return;
     if (!updated) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('That diary entry changed before it could be updated.'),
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('That diary entry changed before it could be updated.')));
       return;
     }
 
     setState(() {});
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Diary time updated.')),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Diary time updated.')));
   }
 
   Future<DateTime?> _pickWatchDateTime(DateTime current) async {
@@ -224,43 +190,24 @@ class _DiaryScreenState extends State<DiaryScreen> {
       helpText: 'When did you watch it?',
     );
     if (date == null || !mounted) return null;
-
     final time = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(current),
       helpText: 'Choose watch time',
     );
     if (time == null || !mounted) return null;
-
-    final replacement =
-        DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    final replacement = DateTime(date.year, date.month, date.day, time.hour, time.minute);
     if (replacement.isAfter(DateTime.now())) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Watch time cannot be in the future.')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Watch time cannot be in the future.')));
       return null;
     }
     return replacement;
   }
 
-  bool _sameDay(DateTime a, DateTime b) =>
-      a.year == b.year && a.month == b.month && a.day == b.day;
+  bool _sameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
 
   String _formatDay(DateTime date) {
-    const months = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
-    ];
+    const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
     return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 }
@@ -315,73 +262,31 @@ class _DiarySummaryCard extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.grey[900],
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Wrap(
-        spacing: 28,
-        runSpacing: 14,
-        children: [
-          _summaryItem(
-            Icons.menu_book,
-            '$totalEntries',
-            'Entries',
-            Colors.redAccent,
-          ),
-          _summaryItem(
-            Icons.movie_outlined,
-            '$movieCount',
-            'Movies',
-            Colors.orangeAccent,
-          ),
-          _summaryItem(
-            Icons.tv_outlined,
-            '$tvCount',
-            'TV episodes',
-            Colors.lightBlueAccent,
-          ),
-          _summaryItem(
-            Icons.replay,
-            '$rewatchCount',
-            'Rewatches',
-            Colors.deepPurpleAccent,
-          ),
-        ],
-      ),
+      decoration: BoxDecoration(color: Colors.grey[900], borderRadius: BorderRadius.circular(16)),
+      child: Wrap(spacing: 28, runSpacing: 14, children: [
+        _summaryItem(Icons.menu_book, '$totalEntries', 'Entries', Colors.redAccent),
+        _summaryItem(Icons.movie_outlined, '$movieCount', 'Movies', Colors.orangeAccent),
+        _summaryItem(Icons.tv_outlined, '$tvCount', 'TV episodes', Colors.lightBlueAccent),
+        _summaryItem(Icons.replay, '$rewatchCount', 'Rewatches', Colors.deepPurpleAccent),
+      ]),
     );
   }
 
-  Widget _summaryItem(
-    IconData icon,
-    String value,
-    String label,
-    Color color,
-  ) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: color, size: 26),
-        const SizedBox(width: 10),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              value,
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            ),
-            Text(label, style: const TextStyle(color: Colors.grey)),
-          ],
-        ),
-      ],
-    );
+  Widget _summaryItem(IconData icon, String value, String label, Color color) {
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Icon(icon, color: color, size: 26),
+      const SizedBox(width: 10),
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+        Text(label, style: const TextStyle(color: Colors.grey)),
+      ]),
+    ]);
   }
 }
 
 class _DiaryTile extends StatelessWidget {
   final _DiaryRecord record;
   final VoidCallback? onEdit;
-
   const _DiaryTile({required this.record, this.onEdit});
 
   @override
@@ -396,151 +301,52 @@ class _DiaryTile extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.grey[900],
             borderRadius: BorderRadius.circular(14),
-            border: record.isRewatch
-                ? Border.all(
-                    color: Colors.deepPurpleAccent.withValues(alpha: 0.45),
-                  )
-                : null,
+            border: record.isRewatch ? Border.all(color: Colors.deepPurpleAccent.withValues(alpha: 0.45)) : null,
           ),
-          child: Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(9),
-                child: SizedBox(
-                  width: 90,
-                  height: 90,
-                  child: record.imageUrl == null
-                      ? _placeholder()
-                      : Image.network(
-                          record.imageUrl!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              _placeholder(),
-                        ),
-                ),
+          child: Row(children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(9),
+              child: SizedBox(
+                width: 90,
+                height: 90,
+                child: record.imageUrl == null
+                    ? _placeholder()
+                    : Image.network(record.imageUrl!, fit: BoxFit.cover, errorBuilder: (context, error, stackTrace) => _placeholder()),
               ),
-              const SizedBox(width: 15),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              record.kind == 'Movie' ? Icons.movie : Icons.tv,
-                              size: 17,
-                              color: record.kind == 'Movie'
-                                  ? Colors.redAccent
-                                  : Colors.lightBlueAccent,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              record.kind,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (record.isRewatch)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.deepPurple.withValues(alpha: 0.35),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              'Rewatch #${record.watchNumber}',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.deepPurpleAccent,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      record.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      record.subtitle,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Colors.white70),
-                    ),
-                    const SizedBox(height: 7),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 5,
-                      children: [
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.access_time,
-                              size: 15,
-                              color: Colors.grey,
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              _formatTime(record.watchedAt),
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (record.runtimeMinutes != null &&
-                            record.runtimeMinutes! > 0)
-                          Text(
-                            _formatRuntime(record.runtimeMinutes!),
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              if (onEdit != null)
-                const Padding(
-                  padding: EdgeInsets.only(right: 8),
-                  child: Icon(
-                    Icons.edit_calendar_outlined,
-                    size: 19,
-                    color: Colors.white54,
+            ),
+            const SizedBox(width: 15),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Wrap(spacing: 8, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(record.kind == 'Movie' ? Icons.movie : Icons.tv, size: 17, color: record.kind == 'Movie' ? Colors.redAccent : Colors.lightBlueAccent),
+                  const SizedBox(width: 6),
+                  Text(record.kind, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                ]),
+                if (record.isRewatch)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(color: Colors.deepPurple.withValues(alpha: 0.35), borderRadius: BorderRadius.circular(20)),
+                    child: Text('Rewatch #${record.watchNumber}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.deepPurpleAccent)),
                   ),
-                ),
-              Icon(
-                record.isRewatch ? Icons.replay : Icons.check_circle,
-                color: record.isRewatch
-                    ? Colors.deepPurpleAccent
-                    : Colors.green,
-              ),
-            ],
-          ),
+              ]),
+              const SizedBox(height: 5),
+              Text(record.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              Text(record.subtitle, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70)),
+              const SizedBox(height: 7),
+              Wrap(spacing: 12, runSpacing: 5, children: [
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.access_time, size: 15, color: Colors.grey),
+                  const SizedBox(width: 5),
+                  Text(_formatTime(record.watchedAt), style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                ]),
+                if (record.runtimeMinutes != null && record.runtimeMinutes! > 0)
+                  Text(_formatRuntime(record.runtimeMinutes!), style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              ]),
+            ])),
+            if (onEdit != null) const Padding(padding: EdgeInsets.only(right: 8), child: Icon(Icons.edit_calendar_outlined, size: 19, color: Colors.white54)),
+            Icon(record.isRewatch ? Icons.replay : Icons.check_circle, color: record.isRewatch ? Colors.deepPurpleAccent : Colors.green),
+          ]),
         ),
       ),
     );
@@ -560,12 +366,7 @@ class _DiaryTile extends StatelessWidget {
     return '${hours}h ${remainingMinutes}m';
   }
 
-  Widget _placeholder() => Container(
-        color: Colors.black26,
-        child: const Center(
-          child: Icon(Icons.play_circle_outline, color: Colors.grey, size: 38),
-        ),
-      );
+  Widget _placeholder() => Container(color: Colors.black26, child: const Center(child: Icon(Icons.play_circle_outline, color: Colors.grey, size: 38)));
 }
 
 class _DiaryRecord {
