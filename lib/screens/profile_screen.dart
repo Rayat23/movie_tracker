@@ -47,16 +47,35 @@ class ProfileScreen extends StatelessWidget {
         favorites.totalMovieRewatches + seriesTracking.totalTvRewatches;
 
     final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final sevenDaysAgo = todayStart.subtract(const Duration(days: 6));
     final monthStart = DateTime(now.year, now.month);
     final nextMonth = DateTime(now.year, now.month + 1);
+    final yearStart = DateTime(now.year);
+    final nextYear = DateTime(now.year + 1);
     final allWatchDates = <DateTime>[
       ...watchedMovies.expand(favorites.getMovieWatchDates),
       ...seriesTracking.allWatchEvents.map((entry) => entry.watchedAt),
     ]..sort();
+    final last7DaysWatches = allWatchDates
+        .where(
+          (date) => !date.isBefore(sevenDaysAgo) &&
+              date.isBefore(todayStart.add(const Duration(days: 1))),
+        )
+        .length;
     final thisMonthWatches = allWatchDates
         .where(
           (date) => !date.isBefore(monthStart) && date.isBefore(nextMonth),
         )
+        .length;
+    final thisYearWatches = allWatchDates
+        .where(
+          (date) => !date.isBefore(yearStart) && date.isBefore(nextYear),
+        )
+        .length;
+    final activeWatchDays = allWatchDates
+        .map((date) => DateTime(date.year, date.month, date.day))
+        .toSet()
         .length;
     final lastWatchedAt = allWatchDates.isEmpty ? null : allWatchDates.last;
 
@@ -104,7 +123,10 @@ class ProfileScreen extends StatelessWidget {
                   _statCard(Icons.play_circle, 'Episodes Watched', '${seriesTracking.totalWatchedEpisodes}', Colors.greenAccent),
                   _statCard(Icons.replay, 'Episode Watches', '${seriesTracking.totalTvWatchEvents}', Colors.deepPurpleAccent),
                   _statCard(Icons.repeat, 'Total Rewatches', '$totalRewatches', Colors.purpleAccent),
+                  _statCard(Icons.date_range, 'Last 7 Days', '$last7DaysWatches', Colors.orangeAccent),
                   _statCard(Icons.calendar_month, 'This Month Watches', '$thisMonthWatches', Colors.orangeAccent),
+                  _statCard(Icons.calendar_today, 'This Year Watches', '$thisYearWatches', Colors.deepOrangeAccent),
+                  _statCard(Icons.event_available, 'Active Watch Days', '$activeWatchDays', Colors.tealAccent),
                   _statCard(
                     Icons.history,
                     'Last Watched',
