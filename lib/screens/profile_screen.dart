@@ -58,6 +58,14 @@ class ProfileScreen extends StatelessWidget {
           (date) => !date.isBefore(monthStart) && date.isBefore(nextMonth),
         )
         .length;
+    final yearStart = DateTime(now.year);
+    final nextYear = DateTime(now.year + 1);
+    final thisYearWatches = allWatchDates
+        .where(
+          (date) => !date.isBefore(yearStart) && date.isBefore(nextYear),
+        )
+        .length;
+    final currentWatchStreak = _currentWatchStreak(allWatchDates, now);
     final lastWatchedAt = allWatchDates.isEmpty ? null : allWatchDates.last;
 
     return SingleChildScrollView(
@@ -105,6 +113,13 @@ class ProfileScreen extends StatelessWidget {
                   _statCard(Icons.replay, 'Episode Watches', '${seriesTracking.totalTvWatchEvents}', Colors.deepPurpleAccent),
                   _statCard(Icons.repeat, 'Total Rewatches', '$totalRewatches', Colors.purpleAccent),
                   _statCard(Icons.calendar_month, 'This Month Watches', '$thisMonthWatches', Colors.orangeAccent),
+                  _statCard(Icons.date_range, 'This Year Watches', '$thisYearWatches', Colors.lightBlueAccent),
+                  _statCard(
+                    Icons.local_fire_department,
+                    'Current Watch Streak',
+                    currentWatchStreak == 1 ? '1 day' : '$currentWatchStreak days',
+                    Colors.deepOrangeAccent,
+                  ),
                   _statCard(
                     Icons.history,
                     'Last Watched',
@@ -380,6 +395,27 @@ class ProfileScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  int _currentWatchStreak(List<DateTime> watchDates, DateTime now) {
+    if (watchDates.isEmpty) return 0;
+
+    final watchedDays = watchDates
+        .map((date) => DateTime(date.year, date.month, date.day))
+        .toSet();
+
+    var cursor = DateTime(now.year, now.month, now.day);
+    if (!watchedDays.contains(cursor)) {
+      cursor = cursor.subtract(const Duration(days: 1));
+      if (!watchedDays.contains(cursor)) return 0;
+    }
+
+    var streak = 0;
+    while (watchedDays.contains(cursor)) {
+      streak++;
+      cursor = cursor.subtract(const Duration(days: 1));
+    }
+    return streak;
   }
 
   String _formatMinutes(int minutes) {
