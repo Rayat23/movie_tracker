@@ -80,6 +80,8 @@ class ProfileScreen extends StatelessWidget {
                 totalRewatches: totalRewatches,
                 ratedMoviesCount: ratedMovies.length,
                 averageRating: averageRating,
+                thisMonthWatches: thisMonthWatches,
+                lastWatchedAt: lastWatchedAt,
               ),
               const SizedBox(height: 28),
               const Text(
@@ -175,6 +177,8 @@ class ProfileScreen extends StatelessWidget {
     required int totalRewatches,
     required int ratedMoviesCount,
     required double averageRating,
+    required int thisMonthWatches,
+    required DateTime? lastWatchedAt,
   }) {
     return Container(
       width: double.infinity,
@@ -262,6 +266,8 @@ class ProfileScreen extends StatelessWidget {
                     totalRewatches: totalRewatches,
                     ratedMoviesCount: ratedMoviesCount,
                     averageRating: averageRating,
+                    thisMonthWatches: thisMonthWatches,
+                    lastWatchedAt: lastWatchedAt,
                   );
                 },
                 icon: const Icon(Icons.copy_all_rounded),
@@ -314,6 +320,8 @@ class ProfileScreen extends StatelessWidget {
     required int totalRewatches,
     required int ratedMoviesCount,
     required double averageRating,
+    required int thisMonthWatches,
+    required DateTime? lastWatchedAt,
   }) async {
     final summary = StringBuffer()
       ..writeln('$profileName — Movie Tracker')
@@ -324,6 +332,8 @@ class ProfileScreen extends StatelessWidget {
       ..writeln('Episodes watched: ${seriesTracking.totalWatchedEpisodes}')
       ..writeln('Episode watches: ${seriesTracking.totalTvWatchEvents}')
       ..writeln('Total rewatches: $totalRewatches')
+      ..writeln('This month watches: $thisMonthWatches')
+      ..writeln("Last watched: ${lastWatchedAt == null ? '—' : _formatWatchDate(lastWatchedAt)}")
       ..writeln('Movie watch time: ${_formatMinutes(movieMinutes)}')
       ..writeln('TV watch time: ${_formatMinutes(tvMinutes)}')
       ..writeln('Total watch time: ${_formatMinutes(totalMinutes)}')
