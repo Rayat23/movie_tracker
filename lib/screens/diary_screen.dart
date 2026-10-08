@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/movie.dart';
+import '../models/tv_diary_event.dart';
 import '../models/tv_watch_entry.dart';
 import '../services/favorites_service.dart';
 import '../services/series_tracking_service.dart';
@@ -42,32 +43,31 @@ class _DiaryScreenState extends State<DiaryScreen> {
       }
     }
 
-    final groupedTvEvents = <String, List<TvWatchEntry>>{};
-    for (final entry in seriesTracking.allWatchEvents) {
-      final key = '${entry.showId}:${entry.episodeId}';
-      groupedTvEvents.putIfAbsent(key, () => <TvWatchEntry>[]).add(entry);
-    }
-    for (final events in groupedTvEvents.values) {
-      events.sort((a, b) => a.watchedAt.compareTo(b.watchedAt));
-      for (int index = 0; index < events.length; index++) {
-        final entry = events[index];
-        String? imageUrl;
-        if (entry.episodeStillPath.isNotEmpty) {
-          imageUrl = 'https://image.tmdb.org/t/p/w780${entry.episodeStillPath}';
-        } else if (entry.showPosterPath.isNotEmpty) {
-          imageUrl = 'https://image.tmdb.org/t/p/w500${entry.showPosterPath}';
-        }
-        records.add(_DiaryRecord(
-          kind: 'TV Episode',
-          title: entry.showName,
-          subtitle: 'S${entry.seasonNumber.toString().padLeft(2, '0')}E${entry.episodeNumber.toString().padLeft(2, '0')} • ${entry.episodeName}',
-          watchedAt: entry.watchedAt,
-          imageUrl: imageUrl,
-          runtimeMinutes: entry.runtimeMinutes,
-          watchNumber: index + 1,
-          tvEntry: entry,
-        ));
+    // Keep the persisted source identity when displaying or editing a rewatch.
+    // Chronological order alone cannot distinguish a backdated rewatch.
+    final tvEvents = buildTvDiaryEvents(
+      watchedEpisodes: seriesTracking.watchedEpisodes,
+      rewatchEpisodes: seriesTracking.rewatchEpisodes,
+    );
+    for (final event in tvEvents) {
+      final entry = event.entry;
+      String? imageUrl;
+      if (entry.episodeStillPath.isNotEmpty) {
+        imageUrl = 'https://image.tmdb.org/t/p/w780${entry.episodeStillPath}';
+      } else if (entry.showPosterPath.isNotEmpty) {
+        imageUrl = 'https://image.tmdb.org/t/p/w500${entry.showPosterPath}';
       }
+      records.add(_DiaryRecord(
+        kind: 'TV Episode',
+        title: entry.showName,
+        subtitle: 'S${entry.seasonNumber.toString().padLeft(2, '0')}E${entry.episodeNumber.toString().padLeft(2, '0')} • ${entry.episodeName}',
+        watchedAt: entry.watchedAt,
+        imageUrl: imageUrl,
+        runtimeMinutes: entry.runtimeMinutes,
+        watchNumber: event.watchNumber,
+        tvEntry: entry,
+        tvIsRewatch: event.isRewatch,
+      ));
     }
 
     records.sort((a, b) => b.watchedAt.compareTo(a.watchedAt));
@@ -379,6 +379,7 @@ class _DiaryRecord {
   final int watchNumber;
   final Movie? movie;
   final TvWatchEntry? tvEntry;
+  final bool tvIsRewatch;
 
   const _DiaryRecord({
     required this.kind,
@@ -390,7 +391,8 @@ class _DiaryRecord {
     required this.watchNumber,
     this.movie,
     this.tvEntry,
+    this.tvIsRewatch = false,
   });
 
-  bool get isRewatch => watchNumber > 1;
+  bool get isRewatch => tvEntry != null ? tvIsRewatch : watchNumber > 1;
 }
