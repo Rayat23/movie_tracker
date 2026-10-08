@@ -438,7 +438,7 @@ class ProfileScreen extends StatelessWidget {
           ),
           SizedBox(height: 6),
           Text(
-            'Rate movies you have watched and your favorites will appear here.',
+            'Rate movies you have watched to see your highest-rated picks here.',
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.white38),
           ),
