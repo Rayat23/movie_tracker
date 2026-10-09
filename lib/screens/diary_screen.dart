@@ -46,8 +46,8 @@ class _DiaryScreenState extends State<DiaryScreen> {
     // Keep the persisted source identity when displaying or editing a rewatch.
     // Chronological order alone cannot distinguish a backdated rewatch.
     final tvEvents = buildTvDiaryEvents(
-      watchedEpisodes: seriesTracking.watchedEpisodes,
-      rewatchEpisodes: seriesTracking.rewatchEpisodes,
+      watchedEpisodes: seriesTracking.watchedEpisodesInStorageOrder,
+      rewatchEpisodes: seriesTracking.rewatchEpisodesInStorageOrder,
     );
     for (final event in tvEvents) {
       final entry = event.entry;
@@ -67,6 +67,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
         watchNumber: event.watchNumber,
         tvEntry: entry,
         tvIsRewatch: event.isRewatch,
+        tvSourceIndex: event.sourceIndex,
       ));
     }
 
@@ -168,6 +169,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
         entry: record.tvEntry!,
         replacement: replacement,
         isRewatch: record.isRewatch,
+        sourceIndex: record.tvSourceIndex,
       );
     }
 
@@ -380,6 +382,7 @@ class _DiaryRecord {
   final Movie? movie;
   final TvWatchEntry? tvEntry;
   final bool tvIsRewatch;
+  final int? tvSourceIndex;
 
   const _DiaryRecord({
     required this.kind,
@@ -392,6 +395,7 @@ class _DiaryRecord {
     this.movie,
     this.tvEntry,
     this.tvIsRewatch = false,
+    this.tvSourceIndex,
   });
 
   bool get isRewatch => tvEntry != null ? tvIsRewatch : watchNumber > 1;

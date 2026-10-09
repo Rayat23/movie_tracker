@@ -136,8 +136,8 @@ void main() {
     // rewatch sorts before its original watch. Otherwise tapping that card
     // would edit the primary entry (or fail to find the rewatch).
     final diaryEvents = buildTvDiaryEvents(
-      watchedEpisodes: SeriesTrackingService.instance.watchedEpisodes,
-      rewatchEpisodes: SeriesTrackingService.instance.rewatchEpisodes,
+      watchedEpisodes: SeriesTrackingService.instance.watchedEpisodesInStorageOrder,
+      rewatchEpisodes: SeriesTrackingService.instance.rewatchEpisodesInStorageOrder,
     ).where((event) => event.entry.episodeId == 101).toList();
     expect(diaryEvents, hasLength(2));
     expect(diaryEvents[0].entry.watchedAt, editedRewatchDate);
@@ -155,6 +155,7 @@ void main() {
         entry: diaryEvents[0].entry,
         replacement: movedAgain,
         isRewatch: diaryEvents[0].isRewatch,
+        sourceIndex: diaryEvents[0].sourceIndex,
       ),
       isTrue,
     );
@@ -186,6 +187,62 @@ void main() {
       SeriesTrackingService.instance.rewatchEpisodes.single.watchedAt
           .isAtSameMomentAs(movedAgain),
       isTrue,
+    );
+
+    // Editing two rewatches to the same minute must not make the second
+    // entry accidentally update the first. No stored fields are discarded.
+    final sharedTimestamp = DateTime.utc(2026, 8, 20, 14, 30);
+    final duplicateRewatches = [
+      {...rewatch.toJson(), 'watched_at': sharedTimestamp.toIso8601String(), 'legacy_tag': 'first'},
+      {...rewatch.toJson(), 'watched_at': sharedTimestamp.toIso8601String(), 'legacy_tag': 'second'},
+    ];
+    await prefs.setString(
+      'rewatched_tv_episodes_v1',
+      jsonEncode(duplicateRewatches),
+    );
+    await SeriesTrackingService.instance.loadAll();
+    final duplicateEvents = buildTvDiaryEvents(
+      watchedEpisodes: SeriesTrackingService.instance.watchedEpisodesInStorageOrder,
+      rewatchEpisodes: SeriesTrackingService.instance.rewatchEpisodesInStorageOrder,
+    ).where((event) => event.isRewatch && event.entry.episodeId == 101).toList();
+    expect(duplicateEvents, hasLength(2));
+    final secondRewatch = duplicateEvents.singleWhere(
+      (event) => event.sourceIndex == 1,
+    );
+    final movedSecond = DateTime.utc(2026, 8, 21, 9, 15);
+    expect(
+      await service.updateWatchDate(
+        entry: secondRewatch.entry,
+        replacement: movedSecond,
+        isRewatch: true,
+        sourceIndex: secondRewatch.sourceIndex,
+      ),
+      isTrue,
+    );
+    final updatedDuplicates = jsonDecode(
+      prefs.getString('rewatched_tv_episodes_v1')!,
+    ) as List<dynamic>;
+    expect(updatedDuplicates, hasLength(2));
+    expect(updatedDuplicates[0], duplicateRewatches[0]);
+    expect(updatedDuplicates[1]['watched_at'], movedSecond.toIso8601String());
+    expect(updatedDuplicates[1]['legacy_tag'], 'second');
+
+    // A stale or invalid index is rejected instead of changing another event.
+    final beforeStaleEdit = prefs.getString('rewatched_tv_episodes_v1');
+    expect(
+      await service.updateWatchDate(
+        entry: secondRewatch.entry,
+        replacement: DateTime.utc(2026, 8, 22),
+        isRewatch: true,
+        sourceIndex: secondRewatch.sourceIndex,
+      ),
+      isFalse,
+    );
+    expect(prefs.getString('rewatched_tv_episodes_v1'), beforeStaleEdit);
+    expect(SeriesTrackingService.instance.totalTvRewatches, 2);
+    expect(
+      prefs.getString('profile:another:watched_tv_episodes_v1'),
+      anotherProfileJson,
     );
   });
 }

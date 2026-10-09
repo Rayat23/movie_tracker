@@ -42,6 +42,13 @@ class SeriesTrackingService {
     return List.unmodifiable(copy);
   }
 
+  /// Preserves storage order for precise diary edits, even for duplicate dates.
+  List<TvWatchEntry> get watchedEpisodesInStorageOrder =>
+      List.unmodifiable(_entries);
+
+  List<TvWatchEntry> get rewatchEpisodesInStorageOrder =>
+      List.unmodifiable(_rewatches);
+
   List<TvWatchEntry> get rewatchEpisodes {
     final copy = List<TvWatchEntry>.from(_rewatches);
     copy.sort((a, b) => b.watchedAt.compareTo(a.watchedAt));
