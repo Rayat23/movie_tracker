@@ -18,6 +18,7 @@ class TvWatchTimestampService {
     required TvWatchEntry entry,
     required DateTime replacement,
     required bool isRewatch,
+    int? sourceIndex,
   }) async {
     if (replacement.isAfter(DateTime.now())) return false;
 
@@ -29,7 +30,7 @@ class TvWatchTimestampService {
     final decoded = jsonDecode(stored);
     if (decoded is! List) return false;
 
-    final index = decoded.indexWhere((item) {
+    bool matches(dynamic item) {
       if (item is! Map) return false;
 
       final watchedAt = DateTime.tryParse(item['watched_at']?.toString() ?? '');
@@ -39,7 +40,18 @@ class TvWatchTimestampService {
           item['episode_number'] == entry.episodeNumber &&
           watchedAt != null &&
           watchedAt.isAtSameMomentAs(entry.watchedAt);
-    });
+    }
+
+    // A minute-precision edit can make two rewatches share the same timestamp.
+    // When the diary provides the persisted index, verify that exact entry
+    // before writing; never silently edit the first matching rewatch instead.
+    final index = sourceIndex == null
+        ? decoded.indexWhere(matches)
+        : (sourceIndex >= 0 &&
+                sourceIndex < decoded.length &&
+                matches(decoded[sourceIndex])
+            ? sourceIndex
+            : -1);
 
     if (index == -1) return false;
 
