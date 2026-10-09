@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:movie_tracker/models/tv_diary_event.dart';
 import 'package:movie_tracker/models/tv_watch_entry.dart';
 import 'package:movie_tracker/services/local_change_service.dart';
 import 'package:movie_tracker/services/series_tracking_service.dart';
@@ -115,7 +116,8 @@ void main() {
       anotherProfileJson,
     );
 
-    final editedRewatchDate = DateTime.utc(2026, 8, 31, 21, 15);
+    // Deliberately place the rewatch before the original August 30 watch.
+    final editedRewatchDate = DateTime.utc(2026, 8, 29, 21, 15);
     expect(
       await service.updateWatchDate(
         entry: rewatch,
@@ -129,6 +131,39 @@ void main() {
     ) as List<dynamic>);
     expect(rewatches, hasLength(1));
     expect(rewatches.single['watched_at'], editedRewatchDate.toIso8601String());
+
+    // The diary must preserve the source collection identity even when a
+    // rewatch sorts before its original watch. Otherwise tapping that card
+    // would edit the primary entry (or fail to find the rewatch).
+    final diaryEvents = buildTvDiaryEvents(
+      watchedEpisodes: SeriesTrackingService.instance.watchedEpisodes,
+      rewatchEpisodes: SeriesTrackingService.instance.rewatchEpisodes,
+    ).where((event) => event.entry.episodeId == 101).toList();
+    expect(diaryEvents, hasLength(2));
+    expect(diaryEvents[0].entry.watchedAt, editedRewatchDate);
+    expect(diaryEvents[0].isRewatch, isTrue);
+    expect(diaryEvents[0].watchNumber, 2);
+    expect(diaryEvents[1].entry.watchedAt, editedPrimaryDate);
+    expect(diaryEvents[1].isRewatch, isFalse);
+    expect(diaryEvents[1].watchNumber, 1);
+
+    // A follow-up edit using the diary event's identity still targets only
+    // the rewatch collection, never the original watch or another profile.
+    final movedAgain = DateTime.utc(2026, 8, 28, 9, 30);
+    expect(
+      await service.updateWatchDate(
+        entry: diaryEvents[0].entry,
+        replacement: movedAgain,
+        isRewatch: diaryEvents[0].isRewatch,
+      ),
+      isTrue,
+    );
+    final finalRewatches = jsonDecode(
+      prefs.getString('rewatched_tv_episodes_v1')!,
+    ) as List<dynamic>;
+    expect(finalRewatches, hasLength(1));
+    expect(finalRewatches.single['watched_at'], movedAgain.toIso8601String());
+    expect(jsonDecode(prefs.getString('watched_tv_episodes_v1')!) as List<dynamic>, primary);
     expect(
       prefs.getString('profile:another:watched_tv_episodes_v1'),
       anotherProfileJson,
@@ -149,7 +184,7 @@ void main() {
     );
     expect(
       SeriesTrackingService.instance.rewatchEpisodes.single.watchedAt
-          .isAtSameMomentAs(editedRewatchDate),
+          .isAtSameMomentAs(movedAgain),
       isTrue,
     );
   });
