@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/tv_watch_entry.dart';
 import 'local_change_service.dart';
+import 'profile_service.dart';
 import 'series_tracking_service.dart';
 
 class TvWatchTimestampService {
@@ -19,10 +20,21 @@ class TvWatchTimestampService {
     required DateTime replacement,
     required bool isRewatch,
     int? sourceIndex,
+    String? expectedProfileId,
   }) async {
     if (replacement.isAfter(DateTime.now())) return false;
 
     final prefs = await SharedPreferences.getInstance();
+    // The editor may remain open while another profile is selected. The
+    // unscoped watch keys are swapped during a profile change, so never
+    // apply a stale edit to whichever profile happens to be active.
+    bool isExpectedProfileActive() =>
+        expectedProfileId == null ||
+        (ProfileService.instance.profiles.isNotEmpty &&
+            ProfileService.instance.activeProfile.id == expectedProfileId &&
+            prefs.getString('active_profile_id_v1') == expectedProfileId);
+    if (!isExpectedProfileActive()) return false;
+
     final storageKey = isRewatch ? _rewatchStorageKey : _watchedStorageKey;
     final stored = prefs.getString(storageKey);
     if (stored == null || stored.isEmpty) return false;
@@ -53,7 +65,7 @@ class TvWatchTimestampService {
             ? sourceIndex
             : -1);
 
-    if (index == -1) return false;
+    if (index == -1 || !isExpectedProfileActive()) return false;
 
     final updated = Map<String, dynamic>.from(
       decoded[index] as Map<dynamic, dynamic>,
@@ -61,6 +73,8 @@ class TvWatchTimestampService {
     updated['watched_at'] = replacement.toIso8601String();
     decoded[index] = updated;
 
+    // Recheck immediately before writing, after all asynchronous reads.
+    if (!isExpectedProfileActive()) return false;
     await prefs.setString(storageKey, jsonEncode(decoded));
     await LocalChangeService.instance.markDirty();
     await SeriesTrackingService.instance.loadAll();
