@@ -4,6 +4,7 @@ import '../models/movie.dart';
 import '../models/tv_diary_event.dart';
 import '../models/tv_watch_entry.dart';
 import '../services/favorites_service.dart';
+import '../services/profile_service.dart';
 import '../services/series_tracking_service.dart';
 import '../services/tv_watch_timestamp_service.dart';
 
@@ -157,6 +158,11 @@ class _DiaryScreenState extends State<DiaryScreen> {
   }
 
   Future<void> _editWatchTime(_DiaryRecord record) async {
+    // Capture the originating profile before the date/time picker can yield.
+    // A profile switch while the picker is open must not redirect this edit.
+    final expectedProfileId = record.tvEntry == null
+        ? null
+        : ProfileService.instance.activeProfile.id;
     final replacement = await _pickWatchDateTime(record.watchedAt);
     if (replacement == null || !mounted) return;
 
@@ -170,6 +176,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
         replacement: replacement,
         isRewatch: record.isRewatch,
         sourceIndex: record.tvSourceIndex,
+        expectedProfileId: expectedProfileId,
       );
     }
 
