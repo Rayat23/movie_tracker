@@ -68,6 +68,8 @@ void main() {
     expect(DateTime.parse(rewatches.single['watched_at'] as String).day, 2);
     expect(find.text('Rewatch #2'), findsOneWidget);
     expect(prefs.getBool('auto_sync_pending_v1'), isTrue);
+    // Stop the sync state monitor before Flutter verifies widget-test timers.
+    LocalChangeService.instance.dispose();
   });
 
   testWidgets('diary UI rejects a picker opened before a profile switch',
