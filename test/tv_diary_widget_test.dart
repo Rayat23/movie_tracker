@@ -52,7 +52,7 @@ void main() {
     await tester.tap(find.text('Rewatch #2'));
     await tester.pumpAndSettle();
     expect(find.text('When did you watch it?'), findsOneWidget);
-    await tester.tap(find.text('2'));
+    await tester.tap(find.text('2').last);
     await tester.pumpAndSettle();
     await tester.tap(find.text('OK'));
     await tester.pumpAndSettle();
