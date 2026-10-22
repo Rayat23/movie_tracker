@@ -27,20 +27,41 @@ class _DiaryScreenState extends State<DiaryScreen> {
     final records = <_DiaryRecord>[];
 
     for (final movie in favorites.watched) {
-      final dates = favorites.getMovieWatchDates(movie);
-      for (int index = 0; index < dates.length; index++) {
+      // A backdated rewatch is still a rewatch. Use persisted collection and
+      // index identity rather than inferring it from chronological position.
+      final original = favorites.getWatchedDate(movie);
+      final rewatches = favorites.getMovieRewatchDatesInStorageOrder(movie);
+      final rewatchIndices = List<int>.generate(rewatches.length, (i) => i)
+        ..sort((a, b) {
+          final order = rewatches[a].compareTo(rewatches[b]);
+          return order != 0 ? order : a.compareTo(b);
+        });
+
+      void addMovieRecord(DateTime watchedAt, int watchNumber,
+          {required bool isRewatch, required int sourceIndex}) {
         records.add(_DiaryRecord(
           kind: 'Movie',
           title: movie.title,
           subtitle: favorites.getUserRating(movie) == null
               ? 'Movie'
               : 'Movie • Your rating ${favorites.getUserRating(movie)!.toStringAsFixed(0)}/10',
-          watchedAt: dates[index],
+          watchedAt: watchedAt,
           imageUrl: movie.posterPath.isEmpty ? null : movie.posterUrl,
           runtimeMinutes: movie.runtimeMinutes > 0 ? movie.runtimeMinutes : null,
-          watchNumber: index + 1,
+          watchNumber: watchNumber,
           movie: movie,
+          movieIsRewatch: isRewatch,
+          movieSourceIndex: sourceIndex,
         ));
+      }
+
+      if (original != null) {
+        addMovieRecord(original, 1, isRewatch: false, sourceIndex: 0);
+      }
+      for (var rank = 0; rank < rewatchIndices.length; rank++) {
+        final index = rewatchIndices[rank];
+        addMovieRecord(rewatches[index], rank + 2,
+            isRewatch: true, sourceIndex: index);
       }
     }
 
@@ -160,16 +181,20 @@ class _DiaryScreenState extends State<DiaryScreen> {
   Future<void> _editWatchTime(_DiaryRecord record) async {
     // Capture the originating profile before the date/time picker can yield.
     // A profile switch while the picker is open must not redirect this edit.
-    final expectedProfileId = record.tvEntry == null
-        ? null
-        : ProfileService.instance.activeProfile.id;
+    final expectedProfileId = ProfileService.instance.activeProfile.id;
     final replacement = await _pickWatchDateTime(record.watchedAt);
     if (replacement == null || !mounted) return;
 
     bool updated = false;
     if (record.movie != null) {
-      await FavoritesService.instance.updateMovieWatchDate(record.movie!, record.watchedAt, replacement);
-      updated = true;
+      updated = await FavoritesService.instance.updateMovieWatchDate(
+        record.movie!,
+        record.watchedAt,
+        replacement,
+        isRewatch: record.movieIsRewatch,
+        sourceIndex: record.movieSourceIndex!,
+        expectedProfileId: expectedProfileId,
+      );
     } else if (record.tvEntry != null) {
       updated = await TvWatchTimestampService.instance.updateWatchDate(
         entry: record.tvEntry!,
@@ -387,6 +412,8 @@ class _DiaryRecord {
   final int? runtimeMinutes;
   final int watchNumber;
   final Movie? movie;
+  final bool movieIsRewatch;
+  final int? movieSourceIndex;
   final TvWatchEntry? tvEntry;
   final bool tvIsRewatch;
   final int? tvSourceIndex;
@@ -400,10 +427,12 @@ class _DiaryRecord {
     required this.runtimeMinutes,
     required this.watchNumber,
     this.movie,
+    this.movieIsRewatch = false,
+    this.movieSourceIndex,
     this.tvEntry,
     this.tvIsRewatch = false,
     this.tvSourceIndex,
   });
 
-  bool get isRewatch => tvEntry != null ? tvIsRewatch : watchNumber > 1;
+  bool get isRewatch => tvEntry != null ? tvIsRewatch : movieIsRewatch;
 }
