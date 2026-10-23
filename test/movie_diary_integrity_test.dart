@@ -98,4 +98,50 @@ void main() {
     expect(prefs.getString('watched_dates'), stored);
     expect(prefs.getBool('auto_sync_pending_v1'), isNot(true));
   });
+
+  test('legacy invalid rewatch timestamps keep persisted source indices', () async {
+    final original = DateTime.utc(2026, 8, 1, 12);
+    final duplicate = DateTime.utc(2026, 8, 2, 13);
+    final moved = DateTime.utc(2026, 7, 30, 9);
+    final initial = {
+      '77': ['not-a-date', duplicate.toIso8601String(),
+        duplicate.toIso8601String()],
+      'legacy_key': ['do not change'],
+    };
+    SharedPreferences.setMockInitialValues({
+      'watched_movies': jsonEncode([movie.toJson()]),
+      'watched_dates': jsonEncode({'77': original.toIso8601String()}),
+      'movie_rewatch_dates_v1': jsonEncode(initial),
+    });
+    final prefs = await SharedPreferences.getInstance();
+    await ProfileService.instance.initialize();
+    await FavoritesService.instance.loadAll();
+    final service = FavoritesService.instance;
+    final profileId = ProfileService.instance.activeProfile.id;
+
+    expect(service.getMovieRewatchDatesInStorageOrder(movie),
+        [duplicate, duplicate]);
+    expect(service.getMovieRewatchSourceIndicesInStorageOrder(movie), [1, 2]);
+
+    // The second displayed rewatch is persisted at index 2, not index 1.
+    expect(await service.updateMovieWatchDate(
+      movie, duplicate, moved,
+      isRewatch: true, sourceIndex: 2, expectedProfileId: profileId,
+    ), isTrue);
+    final actual = jsonDecode(prefs.getString('movie_rewatch_dates_v1')!)
+        as Map<String, dynamic>;
+    expect(actual['77'], ['not-a-date', duplicate.toIso8601String(),
+      moved.toIso8601String()]);
+    expect(actual['legacy_key'], ['do not change']);
+    expect(service.getMovieRewatchSourceIndicesInStorageOrder(movie), [1, 2]);
+    expect(prefs.getBool('auto_sync_pending_v1'), isTrue);
+
+    // Replaying the stale edit must not change the persisted data.
+    final before = prefs.getString('movie_rewatch_dates_v1');
+    expect(await service.updateMovieWatchDate(
+      movie, duplicate, DateTime.utc(2026, 7, 29),
+      isRewatch: true, sourceIndex: 2, expectedProfileId: profileId,
+    ), isFalse);
+    expect(prefs.getString('movie_rewatch_dates_v1'), before);
+  });
 }
