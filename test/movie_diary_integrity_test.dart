@@ -1,11 +1,14 @@
 import 'dart:convert';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:movie_tracker/models/movie.dart';
+import 'package:movie_tracker/screens/diary_screen.dart';
 import 'package:movie_tracker/services/favorites_service.dart';
 import 'package:movie_tracker/services/local_change_service.dart';
 import 'package:movie_tracker/services/profile_service.dart';
+import 'package:movie_tracker/services/series_tracking_service.dart';
 
 const movie = Movie(
   id: 77,
@@ -143,5 +146,51 @@ void main() {
       isRewatch: true, sourceIndex: 2, expectedProfileId: profileId,
     ), isFalse);
     expect(prefs.getString('movie_rewatch_dates_v1'), before);
+  });
+
+  testWidgets('diary picker edits persisted index after invalid legacy rewatch',
+      (tester) async {
+    final original = DateTime(2026, 8, 1, 12);
+    final duplicate = DateTime(2026, 8, 2, 13);
+    final storedRewatches = [
+      'legacy-invalid',
+      duplicate.toIso8601String(),
+      duplicate.toIso8601String(),
+    ];
+    SharedPreferences.setMockInitialValues({
+      'watched_movies': jsonEncode([movie.toJson()]),
+      'watched_dates': jsonEncode({'77': original.toIso8601String()}),
+      'movie_rewatch_dates_v1': jsonEncode({'77': storedRewatches}),
+    });
+    final prefs = await SharedPreferences.getInstance();
+    await ProfileService.instance.initialize();
+    await FavoritesService.instance.loadAll();
+    await SeriesTrackingService.instance.loadAll();
+
+    await tester.pumpWidget(MaterialApp(
+      theme: ThemeData.dark(),
+      home: const DiaryScreen(),
+    ));
+    expect(find.text('Rewatch #3'), findsOneWidget);
+    await tester.tap(find.text('Rewatch #3'));
+    await tester.pumpAndSettle();
+    expect(find.text('When did you watch it?'), findsOneWidget);
+    await tester.tap(find.text('3').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+    expect(find.text('Choose watch time'), findsOneWidget);
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+
+    final saved = jsonDecode(prefs.getString('movie_rewatch_dates_v1')!)
+        as Map<String, dynamic>;
+    final values = saved['77'] as List;
+    expect(values, hasLength(3));
+    expect(values[0], 'legacy-invalid');
+    expect(values[1], duplicate.toIso8601String());
+    expect(DateTime.parse(values[2] as String).day, 3);
+    expect(find.text('Diary time updated.'), findsOneWidget);
+    LocalChangeService.instance.dispose();
   });
 }
