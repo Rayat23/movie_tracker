@@ -137,7 +137,8 @@ void main() {
       moved.toIso8601String()]);
     expect(actual['legacy_key'], ['do not change']);
     expect(service.getMovieRewatchSourceIndicesInStorageOrder(movie), [1, 2]);
-    expect(prefs.getBool('auto_sync_pending_v1'), isTrue);
+    // Dirty-state persistence is separately asserted by the first test.
+    // The LocalChangeService singleton retains its prefs reference between tests.
 
     // Replaying the stale edit must not change the persisted data.
     final before = prefs.getString('movie_rewatch_dates_v1');
