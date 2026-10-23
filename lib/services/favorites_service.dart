@@ -118,13 +118,19 @@ class FavoritesService {
       final inMemory = _rewatchDates[movie.id];
       final indices = _rewatchSourceIndices[movie.id];
       if (current is! List || inMemory == null || indices == null ||
-          sourceIndex < 0 || sourceIndex >= current.length) return false;
+          sourceIndex < 0 || sourceIndex >= current.length) {
+        return false;
+      }
       final memoryIndex = indices.indexOf(sourceIndex);
-      if (memoryIndex < 0 || memoryIndex >= inMemory.length) return false;
+      if (memoryIndex < 0 || memoryIndex >= inMemory.length) {
+        return false;
+      }
       final persistedDate = DateTime.tryParse(current[sourceIndex].toString());
       if (persistedDate == null ||
           !persistedDate.isAtSameMomentAs(original) ||
-          !inMemory[memoryIndex].isAtSameMomentAs(original)) return false;
+          !inMemory[memoryIndex].isAtSameMomentAs(original)) {
+        return false;
+      }
       final revised = List<dynamic>.from(current);
       revised[sourceIndex] = replacement.toIso8601String();
       updated[id] = revised;
@@ -134,7 +140,9 @@ class FavoritesService {
       final inMemory = _watchedDates[movie.id];
       if (persistedDate == null || inMemory == null ||
           !persistedDate.isAtSameMomentAs(original) ||
-          !inMemory.isAtSameMomentAs(original)) return false;
+          !inMemory.isAtSameMomentAs(original)) {
+        return false;
+      }
       updated[id] = replacement.toIso8601String();
     }
 
