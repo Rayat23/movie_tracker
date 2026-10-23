@@ -31,6 +31,8 @@ class _DiaryScreenState extends State<DiaryScreen> {
       // index identity rather than inferring it from chronological position.
       final original = favorites.getWatchedDate(movie);
       final rewatches = favorites.getMovieRewatchDatesInStorageOrder(movie);
+      final persistedRewatchIndices =
+          favorites.getMovieRewatchSourceIndicesInStorageOrder(movie);
       final rewatchIndices = List<int>.generate(rewatches.length, (i) => i)
         ..sort((a, b) {
           final order = rewatches[a].compareTo(rewatches[b]);
@@ -61,7 +63,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
       for (var rank = 0; rank < rewatchIndices.length; rank++) {
         final index = rewatchIndices[rank];
         addMovieRecord(rewatches[index], rank + 2,
-            isRewatch: true, sourceIndex: index);
+            isRewatch: true, sourceIndex: persistedRewatchIndices[index]);
       }
     }
 
