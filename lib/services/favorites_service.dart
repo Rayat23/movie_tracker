@@ -26,6 +26,9 @@ class FavoritesService {
   final Map<int, double> _ratings = {};
   final Map<int, DateTime> _watchedDates = {};
   final Map<int, List<DateTime>> _rewatchDates = {};
+  // Index of each valid in-memory rewatch in the original persisted JSON list.
+  // Invalid legacy timestamps are skipped for display, not renumbered for edits.
+  final Map<int, List<int>> _rewatchSourceIndices = {};
 
   List<Movie> get favorites => List.unmodifiable(_favorites);
   List<Movie> get watchlist => List.unmodifiable(_watchlist);
@@ -80,6 +83,9 @@ class FavoritesService {
   List<DateTime> getMovieRewatchDatesInStorageOrder(Movie movie) =>
       List.unmodifiable(_rewatchDates[movie.id] ?? const <DateTime>[]);
 
+  List<int> getMovieRewatchSourceIndicesInStorageOrder(Movie movie) =>
+      List.unmodifiable(_rewatchSourceIndices[movie.id] ?? const <int>[]);
+
   /// Edits exactly one persisted watch event, without rewriting unrelated keys.
   /// Rejects stale diary pickers and ambiguous/mismatched source indices.
   Future<bool> updateMovieWatchDate(
@@ -110,13 +116,15 @@ class FavoritesService {
 
     if (isRewatch) {
       final inMemory = _rewatchDates[movie.id];
-      if (current is! List || inMemory == null ||
-          sourceIndex < 0 || sourceIndex >= current.length ||
-          sourceIndex >= inMemory.length) return false;
+      final indices = _rewatchSourceIndices[movie.id];
+      if (current is! List || inMemory == null || indices == null ||
+          sourceIndex < 0 || sourceIndex >= current.length) return false;
+      final memoryIndex = indices.indexOf(sourceIndex);
+      if (memoryIndex < 0 || memoryIndex >= inMemory.length) return false;
       final persistedDate = DateTime.tryParse(current[sourceIndex].toString());
       if (persistedDate == null ||
           !persistedDate.isAtSameMomentAs(original) ||
-          !inMemory[sourceIndex].isAtSameMomentAs(original)) return false;
+          !inMemory[memoryIndex].isAtSameMomentAs(original)) return false;
       final revised = List<dynamic>.from(current);
       revised[sourceIndex] = replacement.toIso8601String();
       updated[id] = revised;
@@ -192,16 +200,24 @@ class FavoritesService {
 
   void _loadRewatchDates(String? stored) {
     _rewatchDates.clear();
+    _rewatchSourceIndices.clear();
     if (stored == null || stored.isEmpty) return;
     final decoded = jsonDecode(stored) as Map<String, dynamic>;
     decoded.forEach((key, value) {
       final movieId = int.tryParse(key);
       if (movieId == null || value is! List) return;
-      final dates = value
-          .map((item) => DateTime.tryParse(item.toString()))
-          .whereType<DateTime>()
-          .toList(); // Preserve persisted indices for exact diary edits.
-      if (dates.isNotEmpty) _rewatchDates[movieId] = dates;
+      final dates = <DateTime>[];
+      final sourceIndices = <int>[];
+      for (var i = 0; i < value.length; i++) {
+        final date = DateTime.tryParse(value[i].toString());
+        if (date == null) continue;
+        dates.add(date);
+        sourceIndices.add(i);
+      }
+      if (dates.isNotEmpty) {
+        _rewatchDates[movieId] = dates;
+        _rewatchSourceIndices[movieId] = sourceIndices;
+      }
     });
   }
 
@@ -328,6 +344,11 @@ class FavoritesService {
         ),
       )),
     );
+    // This save serializes only valid in-memory dates, so indices become dense.
+    _rewatchSourceIndices
+      ..clear()
+      ..addAll(_rewatchDates.map((id, dates) =>
+          MapEntry(id, List<int>.generate(dates.length, (i) => i))));
     await LocalChangeService.instance.markDirty();
   }
 }
