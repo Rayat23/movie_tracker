@@ -164,6 +164,8 @@ void main() {
     expect(find.text('Search unavailable'), findsOneWidget);
 
     await tester.ensureVisible(find.text('Retry search'));
+    await tester.pumpAndSettle();
+    expect(find.text('Retry search').hitTestable(), findsOneWidget);
     await tester.tap(find.text('Retry search'));
     await tester.pump();
     expect(movies.queries, ['Retry me', 'Retry me']);
@@ -206,7 +208,13 @@ void main() {
       ),
     );
     await tester.pump();
+    await tester.scrollUntilVisible(
+      find.text('TV Series'),
+      180,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
-    expect(find.text('TV Series'), findsOneWidget);
+    expect(find.text('TV Series').hitTestable(), findsOneWidget);
   });
 }
