@@ -23,6 +23,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Check web startup and recovery
+        run: node --test test/web_startup_test.mjs
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:

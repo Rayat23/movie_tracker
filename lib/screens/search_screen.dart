@@ -8,16 +8,21 @@ import '../widgets/movie_card.dart';
 import '../widgets/tv_show_card.dart';
 
 class SearchScreen extends StatefulWidget {
-  const SearchScreen({super.key});
+  const SearchScreen({super.key, this.movieService, this.tvService});
+
+  final MovieService? movieService;
+  final TvService? tvService;
 
   @override
   State<SearchScreen> createState() => _SearchScreenState();
 }
 
 class _SearchScreenState extends State<SearchScreen> {
-  final MovieService movieService = MovieService();
-  final TvService tvService = TvService();
+  late final MovieService movieService;
+  late final TvService tvService;
   final TextEditingController controller = TextEditingController();
+
+  int _requestId = 0;
 
   int categoryIndex = 0;
   List<Movie> movieResults = [];
@@ -28,9 +33,22 @@ class _SearchScreenState extends State<SearchScreen> {
   String? errorMessage;
   String lastQuery = '';
 
+  @override
+  void initState() {
+    super.initState();
+    movieService = widget.movieService ?? MovieService();
+    tvService = widget.tvService ?? TvService();
+  }
+
   Future<void> doSearch() async {
     final query = controller.text.trim();
-    if (query.isEmpty) return;
+    if (query.isEmpty) {
+      _clearSearch();
+      return;
+    }
+
+    final requestId = ++_requestId;
+    final requestedCategory = categoryIndex;
 
     setState(() {
       isLoading = true;
@@ -40,9 +58,9 @@ class _SearchScreenState extends State<SearchScreen> {
     });
 
     try {
-      if (categoryIndex == 0) {
+      if (requestedCategory == 0) {
         final movies = await movieService.searchMovies(query);
-        if (!mounted) return;
+        if (!mounted || requestId != _requestId) return;
 
         setState(() {
           movieResults = movies;
@@ -50,7 +68,7 @@ class _SearchScreenState extends State<SearchScreen> {
         });
       } else {
         final shows = await tvService.searchTvShows(query);
-        if (!mounted) return;
+        if (!mounted || requestId != _requestId) return;
 
         setState(() {
           tvResults = shows;
@@ -58,10 +76,10 @@ class _SearchScreenState extends State<SearchScreen> {
         });
       }
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || requestId != _requestId) return;
 
       setState(() {
-        if (categoryIndex == 0) {
+        if (requestedCategory == 0) {
           movieResults = [];
         } else {
           tvResults = [];
@@ -74,6 +92,9 @@ class _SearchScreenState extends State<SearchScreen> {
 
   void changeCategory(int index) {
     if (categoryIndex == index) return;
+
+    // A response from the previous category must not change the new view.
+    _requestId++;
 
     setState(() {
       categoryIndex = index;
@@ -88,6 +109,7 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   void _clearSearch() {
+    _requestId++;
     controller.clear();
     setState(() {
       movieResults = [];
@@ -107,6 +129,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   void dispose() {
+    _requestId++;
     controller.dispose();
     super.dispose();
   }
@@ -185,7 +208,7 @@ class _SearchScreenState extends State<SearchScreen> {
                     padding: const EdgeInsets.only(right: 6),
                     child: IconButton.filled(
                       tooltip: 'Search',
-                      onPressed: doSearch,
+                      onPressed: controller.text.trim().isEmpty ? null : doSearch,
                       icon: const Icon(Icons.arrow_forward_rounded),
                     ),
                   ),
@@ -193,7 +216,11 @@ class _SearchScreenState extends State<SearchScreen> {
               ),
             ),
             onChanged: (_) {
-              setState(() {});
+              if (controller.text.trim().isEmpty) {
+                _clearSearch();
+              } else {
+                setState(() {});
+              }
             },
           ),
           const SizedBox(height: 14),
@@ -252,35 +279,41 @@ class _SearchScreenState extends State<SearchScreen> {
     final selected = categoryIndex == index;
 
     return Expanded(
-      child: InkWell(
-        onTap: () => changeCategory(index),
-        borderRadius: BorderRadius.circular(13),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(vertical: 13),
-          decoration: BoxDecoration(
-            color: selected
-                ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.18)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(13),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 19,
-                color: selected ? Colors.white : Colors.white54,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: TextStyle(
+      child: Semantics(
+        selected: selected,
+        child: InkWell(
+          onTap: () => changeCategory(index),
+          borderRadius: BorderRadius.circular(13),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            padding: const EdgeInsets.symmetric(vertical: 13),
+            decoration: BoxDecoration(
+              color: selected
+                  ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.18)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  size: 19,
                   color: selected ? Colors.white : Colors.white54,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                 ),
-              ),
-            ],
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: selected ? Colors.white : Colors.white54,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -310,7 +343,14 @@ class _SearchScreenState extends State<SearchScreen> {
     }
 
     if (errorMessage != null) {
-      return [_messageSliver(Icons.wifi_off_rounded, 'Search unavailable', errorMessage!)];
+      return [
+        _messageSliver(
+          Icons.wifi_off_rounded,
+          'Search unavailable',
+          errorMessage!,
+          onRetry: doSearch,
+        ),
+      ];
     }
 
     if (!hasSearched) {
@@ -416,11 +456,21 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  Widget _messageSliver(IconData icon, String title, String message) {
+  Widget _messageSliver(
+    IconData icon,
+    String title,
+    String message, {
+    VoidCallback? onRetry,
+  }) {
     return SliverPadding(
       padding: const EdgeInsets.fromLTRB(22, 0, 22, 30),
       sliver: SliverToBoxAdapter(
-        child: _messageState(icon: icon, title: title, message: message),
+        child: _messageState(
+          icon: icon,
+          title: title,
+          message: message,
+          onRetry: onRetry,
+        ),
       ),
     );
   }
@@ -429,6 +479,7 @@ class _SearchScreenState extends State<SearchScreen> {
     required IconData icon,
     required String title,
     required String message,
+    VoidCallback? onRetry,
   }) {
     return Center(
       child: Container(
@@ -470,6 +521,14 @@ class _SearchScreenState extends State<SearchScreen> {
                 height: 1.45,
               ),
             ),
+            if (onRetry != null) ...[
+              const SizedBox(height: 20),
+              OutlinedButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Retry search'),
+              ),
+            ],
           ],
         ),
       ),
