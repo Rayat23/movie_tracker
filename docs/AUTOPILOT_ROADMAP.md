@@ -2,6 +2,15 @@
 
 ## Operating mode
 
+**Owner priority (2026-10-28): finish and verify the website before income setup.**
+Prioritize working discovery/search, movie and TV details, tracking, profiles,
+account/sync behavior, responsive navigation, loading/recovery, and release
+checks. Defer revenue activation and additional service-funnel expansion until
+the website is ready and the owner returns to business setup. See
+[`WEBSITE_READINESS.md`](WEBSITE_READINESS.md) for current evidence and remaining
+acceptance work. This changes task order, not existing licensing, privacy,
+data-safety, dependency, or deployment requirements.
+
 Movie Tracker is being developed in **zero-spend mode** until the owner explicitly approves otherwise.
 
 The automation should keep routine work moving without depending on the owner's local computer being online. GitHub Actions and hosted services are the execution layer. The owner's device is only needed for approvals, credentials that cannot be set programmatically, and final product/business decisions.

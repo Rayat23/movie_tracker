@@ -268,7 +268,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   });
                 },
                 decoration: const InputDecoration(
-                  hintText: 'Search movies, series, cast and more...',
+                  hintText: 'Search movies and TV series by title...',
                   prefixIcon: Icon(Icons.search),
                 ),
               ),
