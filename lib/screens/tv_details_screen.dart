@@ -4,6 +4,7 @@ import '../models/season.dart';
 import '../models/tv_show.dart';
 import '../services/series_tracking_service.dart';
 import '../services/tv_service.dart';
+import '../services/where_to_watch_search.dart';
 import 'season_screen.dart';
 
 class TvDetailsScreen extends StatefulWidget {
@@ -332,6 +333,13 @@ class _TvDetailsScreenState extends State<TvDetailsScreen> {
               onPressed: () => _toggleWatchlist(show),
             ),
             _actionButton(
+              icon: Icons.open_in_new_rounded,
+              label: 'Where to Watch on Google',
+              selected: false,
+              selectedColor: Colors.blueGrey,
+              onPressed: () => _openGoogleWatchSearch(show),
+            ),
+            _actionButton(
               icon: isFavorite
                   ? Icons.favorite_rounded
                   : Icons.favorite_border_rounded,
@@ -344,6 +352,25 @@ class _TvDetailsScreenState extends State<TvDetailsScreen> {
         ),
       ],
     );
+  }
+
+  Future<void> _openGoogleWatchSearch(TvShow show) async {
+    try {
+      final opened = await WhereToWatchSearch.openGoogle(
+        title: show.name,
+        year: show.firstAirDate.length >= 4
+            ? show.firstAirDate.substring(0, 4)
+            : null,
+        isTv: true,
+      );
+      if (!opened && mounted) {
+        _showMessage('Could not open Google search.');
+      }
+    } catch (_) {
+      if (mounted) {
+        _showMessage('Could not open Google search.');
+      }
+    }
   }
 
   Widget _metaChip(IconData icon, String text, Color color) {
