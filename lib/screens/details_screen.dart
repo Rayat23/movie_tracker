@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/movie.dart';
 import '../services/favorites_service.dart';
 import '../services/movie_service.dart';
+import '../services/where_to_watch_search.dart';
 
 class DetailsScreen extends StatefulWidget {
   final Movie movie;
@@ -355,6 +356,13 @@ class _DetailsScreenState extends State<DetailsScreen> {
               selectedColor: Colors.red,
               onPressed: () => _toggleFavorite(movie),
             ),
+            _actionButton(
+              icon: Icons.open_in_new_rounded,
+              label: 'Where to Watch on Google',
+              selected: false,
+              selectedColor: Colors.blueGrey,
+              onPressed: () => _openGoogleWatchSearch(movie),
+            ),
             if (isWatched)
               _actionButton(
                 icon: Icons.replay_rounded,
@@ -367,6 +375,25 @@ class _DetailsScreenState extends State<DetailsScreen> {
         ),
       ],
     );
+  }
+
+  Future<void> _openGoogleWatchSearch(Movie movie) async {
+    try {
+      final opened = await WhereToWatchSearch.openGoogle(
+        title: movie.title,
+        year: movie.releaseDate.length >= 4
+            ? movie.releaseDate.substring(0, 4)
+            : null,
+        isTv: false,
+      );
+      if (!opened && mounted) {
+        _showMessage('Could not open Google search.');
+      }
+    } catch (_) {
+      if (mounted) {
+        _showMessage('Could not open Google search.');
+      }
+    }
   }
 
   Widget _metaChip(IconData icon, String text, Color color) {
