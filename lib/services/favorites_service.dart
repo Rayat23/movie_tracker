@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/movie.dart';
 import 'local_change_service.dart';
+import 'profile_service.dart';
 
 class FavoritesService {
   FavoritesService._privateConstructor();
@@ -25,6 +26,9 @@ class FavoritesService {
   final Map<int, double> _ratings = {};
   final Map<int, DateTime> _watchedDates = {};
   final Map<int, List<DateTime>> _rewatchDates = {};
+  // Index of each valid in-memory rewatch in the original persisted JSON list.
+  // Invalid legacy timestamps are skipped for display, not renumbered for edits.
+  final Map<int, List<int>> _rewatchSourceIndices = {};
 
   List<Movie> get favorites => List.unmodifiable(_favorites);
   List<Movie> get watchlist => List.unmodifiable(_watchlist);
@@ -74,25 +78,82 @@ class FavoritesService {
 
   int getMovieWatchCount(Movie movie) => getMovieWatchDates(movie).length;
 
-  Future<void> updateMovieWatchDate(
+  /// Original watch and rewatches must retain their source identity even when
+  /// a rewatch is backdated before the original or dates are duplicated.
+  List<DateTime> getMovieRewatchDatesInStorageOrder(Movie movie) =>
+      List.unmodifiable(_rewatchDates[movie.id] ?? const <DateTime>[]);
+
+  List<int> getMovieRewatchSourceIndicesInStorageOrder(Movie movie) =>
+      List.unmodifiable(_rewatchSourceIndices[movie.id] ?? const <int>[]);
+
+  /// Edits exactly one persisted watch event, without rewriting unrelated keys.
+  /// Rejects stale diary pickers and ambiguous/mismatched source indices.
+  Future<bool> updateMovieWatchDate(
     Movie movie,
     DateTime original,
-    DateTime replacement,
-  ) async {
-    final firstWatch = _watchedDates[movie.id];
-    if (firstWatch != null && firstWatch.isAtSameMomentAs(original)) {
-      _watchedDates[movie.id] = replacement;
-      await _saveWatchedDates();
-      return;
+    DateTime replacement, {
+    required bool isRewatch,
+    required int sourceIndex,
+    required String expectedProfileId,
+  }) async {
+    if (replacement.isAfter(DateTime.now())) return false;
+
+    final prefs = await SharedPreferences.getInstance();
+    bool profileMatches() =>
+        ProfileService.instance.profiles.isNotEmpty &&
+        ProfileService.instance.activeProfile.id == expectedProfileId &&
+        prefs.getString('active_profile_id_v1') == expectedProfileId;
+    if (!profileMatches()) return false;
+
+    final id = movie.id.toString();
+    final storageKey = isRewatch ? _rewatchDatesKey : _watchedDatesKey;
+    final stored = prefs.getString(storageKey);
+    if (stored == null || stored.isEmpty) return false;
+    final decoded = jsonDecode(stored);
+    if (decoded is! Map) return false;
+    final updated = Map<String, dynamic>.from(decoded);
+    final current = updated[id];
+
+    if (isRewatch) {
+      final inMemory = _rewatchDates[movie.id];
+      final indices = _rewatchSourceIndices[movie.id];
+      if (current is! List || inMemory == null || indices == null ||
+          sourceIndex < 0 || sourceIndex >= current.length) {
+        return false;
+      }
+      final memoryIndex = indices.indexOf(sourceIndex);
+      if (memoryIndex < 0 || memoryIndex >= inMemory.length) {
+        return false;
+      }
+      final persistedDate = DateTime.tryParse(current[sourceIndex].toString());
+      if (persistedDate == null ||
+          !persistedDate.isAtSameMomentAs(original) ||
+          !inMemory[memoryIndex].isAtSameMomentAs(original)) {
+        return false;
+      }
+      final revised = List<dynamic>.from(current);
+      revised[sourceIndex] = replacement.toIso8601String();
+      updated[id] = revised;
+    } else {
+      if (sourceIndex != 0) return false;
+      final persistedDate = DateTime.tryParse(current?.toString() ?? '');
+      final inMemory = _watchedDates[movie.id];
+      if (persistedDate == null || inMemory == null ||
+          !persistedDate.isAtSameMomentAs(original) ||
+          !inMemory.isAtSameMomentAs(original)) {
+        return false;
+      }
+      updated[id] = replacement.toIso8601String();
     }
 
-    final rewatches = _rewatchDates[movie.id];
-    if (rewatches == null) return;
-    final index = rewatches.indexWhere((date) => date.isAtSameMomentAs(original));
-    if (index == -1) return;
-    rewatches[index] = replacement;
-    rewatches.sort();
-    await _saveRewatchDates();
+    // Profile selection can change while the date/time picker is open.
+    // No await occurs between this final identity check and the write call.
+    if (!profileMatches()) return false;
+    final saved = await prefs.setString(storageKey, jsonEncode(updated));
+    if (!saved) return false;
+    await LocalChangeService.instance.markDirty();
+    await loadAll();
+    return true;
   }
 
   Future<void> loadAll() async {
@@ -147,17 +208,24 @@ class FavoritesService {
 
   void _loadRewatchDates(String? stored) {
     _rewatchDates.clear();
+    _rewatchSourceIndices.clear();
     if (stored == null || stored.isEmpty) return;
     final decoded = jsonDecode(stored) as Map<String, dynamic>;
     decoded.forEach((key, value) {
       final movieId = int.tryParse(key);
       if (movieId == null || value is! List) return;
-      final dates = value
-          .map((item) => DateTime.tryParse(item.toString()))
-          .whereType<DateTime>()
-          .toList()
-        ..sort();
-      if (dates.isNotEmpty) _rewatchDates[movieId] = dates;
+      final dates = <DateTime>[];
+      final sourceIndices = <int>[];
+      for (var i = 0; i < value.length; i++) {
+        final date = DateTime.tryParse(value[i].toString());
+        if (date == null) continue;
+        dates.add(date);
+        sourceIndices.add(i);
+      }
+      if (dates.isNotEmpty) {
+        _rewatchDates[movieId] = dates;
+        _rewatchSourceIndices[movieId] = sourceIndices;
+      }
     });
   }
 
@@ -284,6 +352,11 @@ class FavoritesService {
         ),
       )),
     );
+    // This save serializes only valid in-memory dates, so indices become dense.
+    _rewatchSourceIndices
+      ..clear()
+      ..addAll(_rewatchDates.map((id, dates) =>
+          MapEntry(id, List<int>.generate(dates.length, (i) => i))));
     await LocalChangeService.instance.markDirty();
   }
 }
